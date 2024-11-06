@@ -1,12 +1,12 @@
 const { invoke } = window.__TAURI__.core;
 
-let greetInputEl;
-let greetMsgEl;
-let utcMsg;
+//Dynamic fields
 
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsgEl.textContent = await invoke("greet", { name: greetInputEl.value });
+let utcMsg;
+let dateMsg;
+
+async function settings_but() {
+  await invoke("settings");
 }
 
 async function utc() {
@@ -14,14 +14,22 @@ async function utc() {
   utcMsg.textContent = await invoke("utc");
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  utcMsg = document.querySelector("#utc-msg");
-  document.querySelector("#greet-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
+async function date() {
+  dateMsg.textContent = await invoke("date");
+}
+
+async function frame() {
   utc();
-  setInterval(utc, 1);
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  utcMsg = document.querySelector("#utc-msg");
+  dateMsg = document.querySelector("#date-msg");
+  setInterval(frame, 100);
+  date();
+
+  document.querySelector("sett-button").addEventListener("submit", (e) => {
+    e.preventDefault();
+    settings_but();
+  });
 });

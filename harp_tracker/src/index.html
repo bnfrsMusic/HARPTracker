@@ -6,20 +6,24 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>HARP Tracker</title>
         <script type="module" src="/main.js" defer></script>
+        <button id="sett-button">Settings</button>
     </head>
 
     <body>
         <main class="container">
             <h1>HARP TRACKER</h1>
-            <p id="utc-msg"></p>
-            <!-- <form class="row" id="greet-form">
-                <input id="greet-input" placeholder="Enter a name..." />
-                <button type="submit">Greet</button>
-            </form> -->
-            <form class="row" id="Connections">
-                <input id="greet-input" placeholder="Enter your ..." />
+            <form class="row">
+                <p id="date-msg"></p>
+                <p id="utc-msg"></p>
             </form>
             <p id="greet-msg"></p>
         </main>
     </body>
+    <footer>
+        <p>Current Position</p>
+        <form class="row">
+            <input size="5" id="lat" placeholder="Latitude" />
+            <input size="5" id="long" placeholder="Longitude" />
+        </form>
+    </footer>
 </html>

@@ -1,12 +1,6 @@
 //imports
 use chrono::Utc;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 //Returns the current UTC time
 #[tauri::command]
 fn utc() -> String {
@@ -22,14 +16,19 @@ fn utc() -> String {
 
 #[tauri::command]
 fn date() -> String {
-    format!("Date: {:?}", Utc::now().date_naive().to_string())
+    format!("Date: {}", Utc::now().date_naive().to_string())
+}
+
+#[tauri::command]
+fn settings() {
+    println!("AAAAAAAAAAAAAAAAAAAH");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![greet, utc])
+        .invoke_handler(tauri::generate_handler![settings, utc, date])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

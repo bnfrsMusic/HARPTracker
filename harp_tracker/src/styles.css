@@ -56,6 +56,12 @@ h1 {
     text-align: center;
 }
 
+p {
+    text-align: center;
+    margin-right: 5px;
+    margin-left: 5px;
+}
+
 input,
 button {
     border-radius: 8px;
@@ -89,6 +95,16 @@ button {
 
 #greet-input {
     margin-right: 5px;
+}
+
+#lat {
+    margin-right: 5px;
+    margin-left: 5px;
+}
+
+#long {
+    margin-right: 5px;
+    margin-left: 5px;
 }
 
 @media (prefers-color-scheme: dark) {
