@@ -10,7 +10,6 @@ async function settings_but() {
 }
 
 async function utc() {
-  //Make this set the text content to the current UTC time
   utcMsg.textContent = await invoke("utc");
 }
 
