@@ -107,6 +107,12 @@ button {
     margin-left: 5px;
 }
 
+/* settings sidebar */
+#ubiquiti-id {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
 @media (prefers-color-scheme: dark) {
     :root {
         color: #f6f6f6;

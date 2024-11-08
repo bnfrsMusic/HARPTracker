@@ -21,7 +21,7 @@ fn date() -> String {
 
 #[tauri::command]
 fn settings() {
-    println!("AAAAAAAAAAAAAAAAAAAH");
+    println!("Open Settings")
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

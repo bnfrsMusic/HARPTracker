@@ -6,8 +6,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>HARP Tracker</title>
         <script type="module" src="/main.js" defer></script>
-        <button id="sett-button">Settings</button>
+        <button id="sett">Settings</button>
     </head>
+
+    <div id="settSidebar" class="sidebar">
+        <input size="8" id="ubiquiti-id" placeholder="Ubiquity ID" />
+    </div>
 
     <body>
         <main class="container">
@@ -16,7 +20,6 @@
                 <p id="date-msg"></p>
                 <p id="utc-msg"></p>
             </form>
-            <p id="greet-msg"></p>
         </main>
     </body>
     <footer>
