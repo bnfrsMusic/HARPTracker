@@ -6,27 +6,83 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>HARP Tracker</title>
         <script type="module" src="/main.js" defer></script>
-        <button id="sett">Settings</button>
     </head>
 
-    <div id="settSidebar" class="sidebar">
-        <input size="8" id="ubiquiti-id" placeholder="Ubiquity ID" />
-    </div>
-
     <body>
-        <main class="container">
-            <h1>HARP TRACKER</h1>
-            <form class="row">
-                <p id="date-msg"></p>
-                <p id="utc-msg"></p>
-            </form>
+        <main>
+            <div id="settSidebar" class="sidebar">
+                <img id="sett" src="assets/settings.png" />
+                <img id="help" src="assets/help.png" />
+            </div>
+            <div class="container">
+                <img class="logo" src="assets/logo.png" />
+                <div class="top">
+                    <p id="date-msg">date</p>
+                    <p id="utc-msg">utc</p>
+                    <form class="row">
+                        <input size="5" id="lat" placeholder="Latitude" />
+                        <input size="5" id="long" placeholder="Longitude" />
+                    </form>
+                </div>
+                <div id="screen"></div>
+                <div class="bottom">
+                    <form>
+                        <input id="aprs" placeholder="Enter APRS Call Sign" />
+                    </form>
+                    <form>
+                        <input id="aprs" placeholder="Enter APRS Call Sign" />
+                    </form>
+                </div>
+            </div>
+            <div class="radio_setup">
+                <h2>Radio/Serial Connectivity</h2>
+                <div class="radio_flexbox">
+                    <button id="radio">
+                        <p>RFD</p>
+                    </button>
+                    <button id="radio">
+                        <p>Iridium</p>
+                    </button>
+                    <button id="radio">
+                        <p>APRS</p>
+                    </button>
+                    <button id="radio">
+                        <p>Ubiquiti</p>
+                    </button>
+                    <button id="radio">
+                        <p>Arduino</p>
+                    </button>
+                </div>
+                <div class="tracking">
+                    <img id="trackparts" src="assets\up.png" />
+                    <img id="trackparts" src="assets\right.png" />
+                    <img id="trackparts" src="assets\control.png" />
+                    <img id="trackparts" src="assets\left.png" />
+                    <img id="trackparts" src="assets\down.png" />
+                </div>
+                <img class="tweak_setup" src="assets/tweak_layout.png" />
+                <div class="inner_tweak_setup">
+                    <h3 id="pan"><b>Pan:</b> 0°</h3>
+                    <p id="tweak_pan"><b>Tweak:</b> 0°</p>
+                    <h3 id="tilt"><b>Tilt:</b> 0°</h3>
+                    <p id="tweak_tilt"><b>Tweak:</b> 0°</p>
+                </div>
+                <div class="outer_tweak_setup">
+                    <p>0°</p>
+                    <p>0°</p>
+                </div>
+            </div>
+            <div class="distance_setup">
+                <h2>Distance Overview</h2>
+                <img class="line_bar" src="assets/line_bar.png" />
+                <div id="line_bar_marker"></div>
+                <div class="distance_details_setup">
+                    <h3 id="altitude"><b>Altitude:</b> 0 ft</h3>
+                    <p id="ascent_rate"><b>Ascent Rate:</b> 0.0 ft/s</p>
+                    <h3 id="distance"><b>Distance:</b> 0.0 mi</h3>
+                    <p id="downrange"><b>Downrange:</b> 0.0 mi</p>
+                </div>
+            </div>
         </main>
     </body>
-    <footer>
-        <p>Current Position</p>
-        <form class="row">
-            <input size="5" id="lat" placeholder="Latitude" />
-            <input size="5" id="long" placeholder="Longitude" />
-        </form>
-    </footer>
 </html>

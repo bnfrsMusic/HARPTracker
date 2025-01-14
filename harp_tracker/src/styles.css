@@ -1,13 +1,33 @@
 .logo.vanilla:hover {
     filter: drop-shadow(0 0 2em #ffe21c);
 }
+
+@font-face {
+    font-family: courier-prime;
+    font-weight: normal;
+    src: url("CourierPrime-Regular.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: afacad-flux;
+    font-weight: normal;
+    src: url("AfacadFlux-Regular.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: afacad-flux;
+    font-weight: bold;
+    src: url("AfacadFlux-Bold.ttf") format("truetype");
+}
+
 :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
     font-size: 16px;
     line-height: 24px;
     font-weight: 400;
 
-    color: #0f0f0f;
+    color: #f6f6f6;
+    background: #f6f6f6;
+
     background-color: #f6f6f6;
 
     font-synthesis: none;
@@ -17,20 +37,29 @@
     -webkit-text-size-adjust: 100%;
 }
 
-.container {
-    margin: 0;
-    padding-top: 10vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
+body {
+    overflow: hidden;
+    background: #f6f6f6;
 }
 
-.logo {
-    height: 6em;
+.container {
+    margin: -90px auto;
+    padding-top: 10vh;
+}
+
+img.logo {
+    height: 4em;
     padding: 1.5em;
     will-change: filter;
     transition: 0.75s;
+    margin: -95px 440px 0px;
+}
+
+#screen {
+    width: 600px;
+    height: 338px;
+    background-color: black;
+    margin: 20px auto 0px;
 }
 
 .logo.tauri:hover {
@@ -52,45 +81,97 @@ a:hover {
     color: #535bf2;
 }
 
-h1 {
+h2 {
+    font-family: courier-prime;
     text-align: center;
 }
 
+h3 {
+    font-family: afacad-flux;
+    font-size: 23px;
+    font-weight: normal;
+}
+
 p {
-    text-align: center;
-    margin-right: 5px;
-    margin-left: 5px;
+    font-family: afacad-flux;
+    font-size: 18px;
+    color: black;
 }
 
 input,
 button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    color: #0f0f0f;
-    background-color: #ffffff;
-    transition: border-color 0.25s;
-    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+    border: 1px solid black;
+    border-radius: 10%;
+    background-color: white;
+    font-family: afacad-flux;
+}
+
+input {
+    height: 20px;
+    width: 70px;
 }
 
 button {
     cursor: pointer;
 }
 
-button:hover {
-    border-color: #396cd8;
-}
-button:active {
-    border-color: #396cd8;
-    background-color: #e8e8e8;
+button:hover,
+input:hover {
+    border: 1px solid #396cd8;
 }
 
-input,
-button {
-    outline: none;
+.radio_setup {
+    width: 500px;
+    margin: -350px -30px 0px;
+    position: absolute;
+}
+
+.radio_flexbox {
+    display: flex;
+    margin: 0px 55px;
+}
+
+button#radio {
+    padding: 0px 10px;
+    margin: 0px 5px;
+    background: #f6f6f6;
+}
+
+.tracking {
+    margin: 50px 0px;
+    padding: 0px 50px;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+img#trackparts {
+    height: 50%;
+    width: 50%;
+    margin: 0px -100px;
+}
+
+img.tweak_setup {
+    width: 60%;
+    height: 60%;
+    margin: -100px 100px;
+}
+
+.inner_tweak_setup {
+    margin: -100px 145px;
+    gap: 0px 70px;
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    height: 100px;
+    line-height: 0px;
+    color: black;
+}
+
+.outer_tweak_setup {
+    margin: 40px 80px;
+    gap: 0px 310px;
+    display: flex;
 }
 
 #greet-input {
@@ -116,14 +197,17 @@ button {
 @media (prefers-color-scheme: dark) {
     :root {
         color: #f6f6f6;
-        background-color: #2f2f2f;
+        background-color: #f6f6f6;
     }
 
     a:hover {
         color: #24c8db;
     }
 
-    input,
+    input {
+        background: #f6f6f6;
+    }
+    ,
     button {
         color: #ffffff;
         background-color: #0f0f0f98;
@@ -131,4 +215,65 @@ button {
     button:active {
         background-color: #0f0f0f69;
     }
+}
+
+#sett {
+    width: 6%;
+    height: 6%;
+}
+
+#help {
+    width: 6%;
+    height: 6%;
+}
+
+/*#aprs {
+    align-self: center;
+    }*/
+
+.bottom {
+    display: flex;
+    width: 100px;
+    margin: 20px 680px;
+}
+
+.sidebar {
+    margin: 0px 0px;
+    display: flex;
+    align-items: center;
+}
+
+.distance_setup {
+    float: right;
+    margin: -350px 80px 0px;
+}
+
+.line_bar {
+    height: 50%;
+    margin: 0px -10px;
+    position: absolute;
+}
+
+#line_bar_marker {
+    width: 20px;
+    height: 3px;
+    background-color: #396cd8;
+    position: absolute;
+    margin: 380px 2px;
+}
+
+.distance_details_setup {
+    margin: 420px 0px;
+    gap: 0px 50px;
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    line-height: 0px;
+    height: 100px;
+    border-top: 2px solid black;
+    align-content: center;
+}
+
+.top {
+    text-align: center;
 }
