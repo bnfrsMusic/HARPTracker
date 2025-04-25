@@ -84,6 +84,7 @@ a:hover {
 h2 {
     font-family: courier-prime;
     text-align: center;
+    color: black;
 }
 
 h3 {
@@ -122,7 +123,7 @@ input:hover {
 
 .radio_setup {
     width: 500px;
-    margin: -350px -30px 0px;
+    margin: -370px -30px 0px;
     position: absolute;
 }
 
@@ -131,7 +132,7 @@ input:hover {
     margin: 0px 55px;
 }
 
-button#radio {
+button.radio {
     padding: 0px 10px;
     margin: 0px 5px;
     background: #f6f6f6;
@@ -207,7 +208,7 @@ img.tweak_setup {
     input {
         background: #f6f6f6;
     }
-    ,
+    
     button {
         color: #ffffff;
         background-color: #0f0f0f98;
@@ -227,14 +228,17 @@ img.tweak_setup {
     height: 6%;
 }
 
-/*#aprs {
-    align-self: center;
-    }*/
+input.aprs {
+    color: red;
+    width: 130px;
+}
 
 .bottom {
-    display: flex;
     width: 100px;
-    margin: 20px 680px;
+    margin: 20px 630px;
+    position: absolute;
+    display: flex;
+    column-gap: 10px;
 }
 
 .sidebar {
