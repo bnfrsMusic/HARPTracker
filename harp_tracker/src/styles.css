@@ -98,10 +98,10 @@ body {
     display: grid;
     grid-template-areas: 
         "header header header"               
-        "left main right"                
-        "footer footer footer";
-    grid-template-rows: 1fr 4fr;
-    grid-template-columns: 1fr 2fr 1fr;
+        "left main right";
+    grid-template-rows: 20% 80%;
+    grid-template-columns: 25% 50% 25%;
+    align-items: center;
  }
  .top {
     grid-area: header;
@@ -138,7 +138,7 @@ button.signal {
 
 iframe.screen {
     padding: 6em 10em;
-    margin: 0 auto;
+    margin: 0;
     background-color: black;
     border: 1px solid rgba(0,0,0,0);
 }
@@ -147,6 +147,7 @@ iframe.screen {
     display: flex;
     justify-content: space-around;
     column-gap: 15em;
+    flex-wrap: wrap;
 
 }
 
@@ -191,14 +192,15 @@ img#trackparts {
 .radio-setup {
     display: flex;
     flex-wrap: wrap;
-    flex-direction: column;
-    height: 10em;
-    margin: 0 2em;
+    flex-direction: row;
     align-items: center;
+    justify-content: space-between;
+    margin: 0 2em;
 }
 
 .distance_setup {
     justify-content: center;
+    margin: -15.5em 0;
 }
 
 .line_bar {
