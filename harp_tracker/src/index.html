@@ -9,80 +9,74 @@
     </head>
 
     <body>
-        <main>
-            <div id="settSidebar" class="sidebar">
-                <img id="sett" src="assets/settings.png" />
-                <img id="help" src="assets/help.png" />
+        <div class = "parts-layout">
+            <div class = "top">
+                <h1>HARP TRACKER</h1>
+                <p id="console-text">console text</p>
             </div>
-            <div class="container">
-                <img class="logo" src="assets/logo.png" />
-                <div class="top">
-                    <p id="date-msg">date</p>
-                    <p id="utc-msg">utc</p>
-                    <form class="row">
-                        <input size="5" id="lat" placeholder="Latitude" />
-                        <input size="5" id="long" placeholder="Longitude" />
-                    </form>
-                </div>
-                <div id="screen"></div>
-                <div class="bottom">
-                    <form>
-                        <input class="aprs" placeholder="Enter APRS Call Sign" />
-                    </form>
-                    <form>
-                        <input class="aprs" placeholder="Enter APRS Call Sign" />
-                    </form>
-                </div>
-            </div>
-            <div class="radio_setup">
-                <h2>Radio/Serial Connectivity</h2>
-                <div class="radio_flexbox">
-                    <button class="radio" id = "rfd_butt">
+            <div class = "center">
+                <div class="signal_flexbox">
+                    <button class="signal" id = "rfd_butt">
                         <p>RFD</p>
                     </button>
-                    <button class="radio" id = "iridium_butt">
+                    <button class="signal" id = "iridium_butt">
                         <p>Iridium</p>
                     </button>
-                    <button class="radio" id = "aprs_butt">
+                    <button class="signal" id = "aprs_butt">
                         <p>APRS</p>
                     </button>
-                    <button class="radio" id = "ubiquiti_butt">
+                    <button class="signal" id = "ubiquiti_butt">
                         <p>Ubiquiti</p>
                     </button>
-                    <button class="radio" id = "arduino_butt">
+                    <button class="signal" id = "arduino_butt">
                         <p>Arduino</p>
                     </button>
                 </div>
-                <div class="tracking">
-                    <img id="trackparts" src="assets\up.png" />
-                    <img id="trackparts" src="assets\right.png" />
-                    <img id="trackparts" src="assets\control.png" />
-                    <img id="trackparts" src="assets\left.png" />
-                    <img id="trackparts" src="assets\down.png" />
+                <div class = "frame-container">
+                    <iframe class = "screen"></iframe>
+                    <div class = "frame-info">
+                        <div class = "frame-info-left">
+                            <p id = "long">Longitude, </p>
+                            <p id = "lat">Latitude</p>
+                            <p>|</p>
+                            <p id = "alt">Altitude</p>
+                        </div>
+                        <div class = "frame-info-right">
+                            <p id = "city">City, </p>
+                            <p id = "state">State</p>
+                        </div>
+                    </div>
                 </div>
-                <img class="tweak_setup" src="assets/tweak_layout.png" />
-                <div class="inner_tweak_setup">
+                <p id="utc-msg">utc</p>
+            </div>
+            <div class = "left">
+                <h2>Radio Connectivity</h2>
+                <div class="tweak-setup">
                     <h3 id="pan"><b>Pan:</b> 0°</h3>
-                    <p id="tweak_pan"><b>Tweak:</b> 0°</p>
                     <h3 id="tilt"><b>Tilt:</b> 0°</h3>
-                    <p id="tweak_tilt"><b>Tweak:</b> 0°</p>
                 </div>
-                <div class="outer_tweak_setup">
-                    <p>0°</p>
-                    <p>0°</p>
+                <div class="track-setup">
+                    <div class="tracking">
+                        <img id="trackparts" src="assets\up.png" />
+                        <img id="trackparts" src="assets\right.png" />
+                        <img id="trackparts" src="assets\control.png" />
+                        <img id="trackparts" src="assets\left.png" />
+                        <img id="trackparts" src="assets\down.png" />
+                    </div>
+                </div>
+                <div class = "radio-setup">
+                    <h3>APRS Callsign</h3>
+                    <input type = "text" id = "aprs field">
+                    <h3>Iridium IMEI</h3>
+                    <input type = "text" id = "iridium field">
                 </div>
             </div>
-            <div class="distance_setup">
-                <h2>Distance Overview</h2>
-                <img class="line_bar" src="assets/line_bar.png" />
-                <div id="line_bar_marker"></div>
-                <div class="distance_details_setup">
-                    <h3 id="altitude"><b>Altitude:</b> 0 ft</h3>
-                    <p id="ascent_rate"><b>Ascent Rate:</b> 0.0 ft/s</p>
-                    <h3 id="distance"><b>Distance:</b> 0.0 mi</h3>
-                    <p id="downrange"><b>Downrange:</b> 0.0 mi</p>
+            <div class = "right">
+                <div class="distance_setup">
+                    <h2>Distance Overview</h2>
+                    <img class="line_bar" src="assets/line_bar.png" />
                 </div>
             </div>
-        </main>
+        </div>
     </body>
 </html>
