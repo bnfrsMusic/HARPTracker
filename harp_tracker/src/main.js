@@ -302,6 +302,8 @@ async function getPosition() {
 
     // console.error("Error getting position:", error);
   }
+  const measure = 100 * (1 - (alt.textContent/117500));
+  document.getElementById("bar-measure-line").style.padding = measure.toString() + "%";
 }
 
 //------------------------------Map Functions/Handlers------------------------------

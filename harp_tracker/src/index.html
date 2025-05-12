@@ -38,7 +38,7 @@
                         <div class = "frame-info-left">
                             <p id = "lat">Latitude, </p>
                             <p id = "long">Longitude</p>
-                            <p>|</p>
+                            <p><b>|</b></p>
                             <p id = "alt">Altitude</p>
                         </div>
                         <div class = "frame-info-right">
@@ -47,6 +47,8 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <div class = "bottom">
                 <p id="utc-msg">utc</p>
                 <p id="last-update">last update</p>
             </div>
@@ -75,7 +77,12 @@
             <div class = "right">
                 <div class="distance_setup">
                     <h2>Distance Overview</h2>
-                    <img class="line_bar" src="assets/line_bar.png" />
+                    <div class = "measuring">
+                        <img class="line_bar" src="assets/line_bar.png" />
+                        <div class = "bar-measure">
+                            <div id = "bar-measure-line"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
