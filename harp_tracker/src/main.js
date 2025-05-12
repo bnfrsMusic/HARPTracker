@@ -227,6 +227,25 @@ async function updateLastUpdate() {
   }
 }
 
+//Update the Altitude Bar
+function updateAltitudeBar(altitudeFt) {
+  const maxAlt = 110_000;
+  const minY =    0;
+  const maxY =  396;
+  
+  // clamp
+  const clamped = Math.max(0, Math.min(maxAlt, altitudeFt));
+  // linear interpolation
+  const pct = clamped / maxAlt;
+  const y = maxY - pct * (maxY - minY);
+
+  const marker = document.getElementById("altitude-marker");
+  if (marker) {
+    marker.setAttribute("y", y);
+  }
+}
+
+
 //------------------------------Input Handlers------------------------------
 
 
@@ -297,11 +316,16 @@ async function getPosition() {
       previousLat = currentLat;
       previousLong = currentLong;
     }
+
+    //Update altitude bar
+    const altitudeFt = Math.round(altitude * 3.28084); 
+    updateAltitudeBar(altitudeFt);
+
+
   } catch (error) {
     console_text.textContent = "Error getting position:" + error;
-
-    // console.error("Error getting position:", error);
   }
+
 }
 
 //------------------------------Map Functions/Handlers------------------------------
