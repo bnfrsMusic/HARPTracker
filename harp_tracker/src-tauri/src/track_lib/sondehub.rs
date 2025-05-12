@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use reqwest::blocking::Client;
 use serde_json::Value;
-use std::{f32::consts::E, option, ptr::NonNull, time::{SystemTime, UNIX_EPOCH}};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
 pub struct SondeHub {

@@ -2,7 +2,7 @@ pub mod track_lib;
 // Imports
 use chrono::Utc;
 use once_cell::sync::Lazy;
-use track_lib::{aprs::APRS, tracker::Tracker};
+use track_lib::tracker::Tracker;
 use std::{sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
 
 pub struct Coords {

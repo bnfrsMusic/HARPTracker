@@ -1,10 +1,8 @@
-use std::{error::Error, time::{SystemTime, UNIX_EPOCH}};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use serialport::SerialPort;
 
-use crate::track_lib::{aprs, sondehub};
 
-use super::{aprs::APRS, iridium::{self, Iridium}, sondehub::SondeHub};
+use super::{aprs::APRS, iridium::{Iridium}, sondehub::SondeHub};
 
 pub struct Tracker {
     aprs: Option<APRS>,
