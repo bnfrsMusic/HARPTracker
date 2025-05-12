@@ -6,25 +6,21 @@
     font-weight: normal;
     src: url("Orbitron.ttf") format("truetype");
 }
-
 @font-face {
     font-family: courier-prime;
     font-weight: normal;
     src: url("CourierPrime-Regular.ttf") format("truetype");
 }
-
 @font-face {
     font-family: afacad-flux;
     font-weight: normal;
     src: url("AfacadFlux-Regular.ttf") format("truetype");
 }
-
 @font-face {
     font-family: afacad-flux;
     font-weight: bold;
     src: url("AfacadFlux-Bold.ttf") format("truetype");
 }
-
 h1 {
     font-family: orbitron;
     color: black;
@@ -32,65 +28,59 @@ h1 {
     text-align: center;
     font-weight: normal;
 }
-
 h2 {
     font-family: courier-prime;
     color: black;
     text-align: center;
     font-size: 1.7em;
 }
-
 h3 {
     font-family: afacad-flux;
     font-size: 1.5em;
     color: black;
     font-weight: bold;
 }
-
 p {
     font-family: afacad-flux;
     font-size: 1.2em;
     color: black;
     font-weight: normal;
 }
-
 button {
     font-family: afacad-flux;
     font-size: 1em;
     border: 1px solid black;
     font-weight: normal;
+    transition: background-color 0.3s, color 0.3s;
 }
-
 button:focus {
     font-weight: bold;
     border: 2px solid black;
 }
-
+button.active {
+    background-color: #4CAF50;
+    color: white;
+}
 input, button {
     border: 1px solid black;
     background-color: white; 
 }
-
 input {
     height: 1.5em;
     font-family: afacud-flux
 }
-
 input[type="text"]
 {
     font-family: afacad-flux;
     font-size: 1em;
 }
-
 input:focus {
     border: 2px solid black; 
 }
-
 body {
     overflow: hidden;
     background: #f6f6f6;
 }
-
 .parts-layout {
     height: 100vh;
     width: 100vw;
@@ -117,13 +107,11 @@ body {
  .right {
     grid-area: right;
  }
-
 .signal_flexbox {
     display: flex;
     margin: 0px auto;
     justify-content: center;
 }
-
 button.signal {
     padding: 0 1em;
     margin: 0 0.2em;
@@ -134,13 +122,17 @@ button.signal {
     flex-direction: column;
     background-color: white;
     border: 1px solid black;
+    height: 450px; /* Adjust this height as needed for your UI */
 }
 
 iframe.screen {
-    padding: 6em 10em;
+    width: 100%;
+    height: 100%;
     margin: 0;
+    padding: 0;
+    border: none;
     background-color: black;
-    border: 1px solid rgba(0,0,0,0);
+    display: block;
 }
 
 .frame-info {
@@ -148,47 +140,41 @@ iframe.screen {
     justify-content: space-around;
     column-gap: 15em;
     flex-wrap: wrap;
-
 }
-
 .frame-info-left {
     display: flex;
 }
-
 .frame-info-right {
     display: flex;
     justify-content: right;
 }
-
 #utc-msg {
     text-align: center;
 }
-
+#last-update {
+    text-align: center;
+}
 .track-setup {
     width: 500px;
     margin: 0px -3em;
 }
-
 .tweak-setup {
     display: flex;
     justify-content: center;
     align-items: center;
     column-gap: 1em;
 }
-
 .tracking {
     padding: 0px 50px;
     display: flex;
     flex-direction: row;
     justify-content: center;
 }
-
 img#trackparts {
     height: 50%;
     width: 50%;
     margin: 0px -100px;
 }
-
 .radio-setup {
     display: flex;
     flex-wrap: wrap;
@@ -197,12 +183,10 @@ img#trackparts {
     justify-content: space-between;
     margin: 0 2em;
 }
-
 .distance_setup {
     justify-content: center;
     margin: -15.5em 0;
 }
-
 .line_bar {
     height: 50%;
     margin: 0px -10px;
