@@ -48,7 +48,7 @@ impl APRS {
             self.base_url, self.call_sign, self.api_key
         );
 
-        // Make GET request to URL
+        //make GET request to URL
         let response: Value = self.client.get(&url).send()?.json()?;
 
         // Check if request was successful
@@ -82,7 +82,7 @@ impl APRS {
                     // .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                // We dont have vertical velocity in APRS API
+                // We dont have vertical velocity in APRS API (I dont think so anyway)
                 self.vertical_velocity = 0.0;
                 
                 // Extract time data

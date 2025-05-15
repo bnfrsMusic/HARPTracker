@@ -100,6 +100,7 @@ impl Tracker{
             if opt.is_err(){err.push(opt.err().unwrap());}
         }
 
+        //Collect latest time and pos
         let mut most_recent_time = None;
         let mut most_recent_position = None;
         

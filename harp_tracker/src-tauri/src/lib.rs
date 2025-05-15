@@ -78,7 +78,7 @@ fn get_aprs_callsign() -> String {
     callsign
 }
 
-// Initialize APRS with current callsign
+// Init APRS with current callsign
 #[tauri::command]
 fn set_aprs() -> bool {
     let aprs_call = APRS_CALLSIGN.lock().unwrap();
@@ -91,7 +91,7 @@ fn set_aprs() -> bool {
     }
 }
 
-// Initialize Iridium modem with current ID
+// Init Iridium modem with current ID
 #[tauri::command]
 fn set_iridium() -> bool {
     let modem = IRIDIUM_MODEM.lock().unwrap();
