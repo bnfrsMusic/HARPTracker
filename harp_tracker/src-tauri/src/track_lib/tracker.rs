@@ -77,6 +77,7 @@
             // Ok(())
             return Err("Error updating Iridium".into());
         }
+
         fn update_sondehub(&mut self) -> Result<(), Box<(dyn std::error::Error + 'static)>>{
             if self.sondehub.is_some(){
                 return self.sondehub.as_mut().unwrap().update_position();
@@ -130,46 +131,173 @@
         }
 
 
+        //Function to filter out any outliers in given gps data
+        fn return_valid_pos_time(positions: Vec<(f64, f64, f64)>, times: Vec<u64>) -> Option<((f64, f64, f64), u64)> {
+            if positions.is_empty() || times.is_empty() || positions.len() != times.len(){
+                println!("Empty vectors or length mismatch");
+                return None;
+            }
+            println!("Pos LEN {}", positions.len());
+            println!("TIMES LEN {}", times.len());
+            
+            if times.len() == 1{
+                println!("Single entry, returning it");
+                return Some((positions.get(0).unwrap().to_owned(), times.get(0).unwrap().to_owned()));
+            }
+            
+            let n = positions.len();
+            
+            //Calc median position for each coordinate
+            let mut x_coords: Vec<f64> = positions.iter().map(|p| p.0).collect();
+            let mut y_coords: Vec<f64> = positions.iter().map(|p| p.1).collect();
+            let mut z_coords: Vec<f64> = positions.iter().map(|p| p.2).collect();
+            
+            x_coords.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            y_coords.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            z_coords.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            
+            let median_x = if n % 2 == 0 {
+                (x_coords[n/2 - 1] + x_coords[n/2]) / 2.0
+            } else {
+                x_coords[n/2]
+            };
+            
+            let median_y = if n % 2 == 0 {
+                (y_coords[n/2 - 1] + y_coords[n/2]) / 2.0
+            } else {
+                y_coords[n/2]
+            };
+            
+            let median_z = if n % 2 == 0 {
+                (z_coords[n/2 - 1] + z_coords[n/2]) / 2.0
+            } else {
+                z_coords[n/2]
+            };
+            
+            println!("Medians - X: {}, Y: {}, Z: {}", median_x, median_y, median_z);
+            
+            //Calculates the acceptable margin
+            let margin = 0.15; //I am currently using a 15% margin
+            
+            // Handle case where median might be zero or negative
+            let x_range = if median_x.abs() < f64::EPSILON {
+                // If median is essentially zero, use absolute margin
+                (-margin, margin)
+            } else {
+                (median_x * (1.0 - margin), median_x * (1.0 + margin))
+            };
+            
+            let y_range = if median_y.abs() < f64::EPSILON {
+                (-margin, margin)
+            } else {
+                (median_y * (1.0 - margin), median_y * (1.0 + margin))
+            };
+            
+            let z_range = if median_z.abs() < f64::EPSILON {
+                (-margin, margin)
+            } else {
+                (median_z * (1.0 - margin), median_z * (1.0 + margin))
+            };
+            
+            println!("Ranges - X: {:?}, Y: {:?}, Z: {:?}", x_range, y_range, z_range);
+            
+            // Find valid positions with their corresponding times, doesnt include outliers
+            let mut valid_entries: Vec<((f64, f64, f64), u64)> = Vec::new();
+            
+            for i in 0..n {
+                let pos = positions[i];
+                let time = times[i];
+                
+                // Check if position is within acceptable range for all coordinates
+                let x_valid = pos.0 >= x_range.0 && pos.0 <= x_range.1;
+                let y_valid = pos.1 >= y_range.0 && pos.1 <= y_range.1;
+                let z_valid = pos.2 >= z_range.0 && pos.2 <= z_range.1;
+                
+                println!("Position {}: {:?}, Time: {}", i, pos, time);
+                println!("  X valid: {} ({} in range {:?})", x_valid, pos.0, x_range);
+                println!("  Y valid: {} ({} in range {:?})", y_valid, pos.1, y_range);
+                println!("  Z valid: {} ({} in range {:?})", z_valid, pos.2, z_range);
+                
+                if x_valid && y_valid && z_valid {
+                    println!("  -> Adding to valid entries");
+                    valid_entries.push((pos, time));
+                } else {
+                    println!("  -> Rejected as outlier");
+                }
+            }
+            
+            println!("Found {} valid entries out of {}", valid_entries.len(), n);
+            
+            // Return the most recent valid entry
+            let result = valid_entries.into_iter().max_by_key(|&(_, time)| time);
+            if let Some(ref entry) = result {
+                println!("Returning most recent valid entry: {:?}", entry);
+            } else {
+                println!("No valid entries found!");
+            }
+            result
+        }
+
         // ------------------------Public Functions------------------------
         
         pub fn update(&mut self) -> Vec<Box<(dyn std::error::Error + 'static)>>{
-
-
+            
+            //Error collection to display to users (Only soft errors, not program breaking)
             let mut err: Vec<Box<(dyn std::error::Error + 'static)>> = vec![];
 
             for opt in self.update_tracker(){
                 if opt.is_err(){err.push(opt.err().unwrap());}
             }
 
-            //Collect latest time and pos
-
             let mut most_recent_time = None;
             let mut most_recent_position = None;
             
+            let mut positions: Vec<(f64,f64,f64)> = vec![];
+            let mut times: Vec<u64> = vec![];
+
             if let Some(aprs) = &self.aprs {
                 let aprs = aprs.clone();
-                let update_time = aprs.get_last_update();
-                most_recent_time = Some(update_time);
-                most_recent_position = Some(aprs.get_position());
+
+                //push updates to a vector
+
+                let t = aprs.get_last_update();
+                if t != 0{
+                    times.push(t);
+                    positions.push(aprs.get_position());
+                }
+
             }
             
             if let Some(iridium) = &self.iridium {
                 let iridium = iridium.clone();
-                let update_time = iridium.get_last_update();
-                if most_recent_time.is_none() || update_time > most_recent_time.unwrap() {
-                    most_recent_time = Some(update_time);
-                    most_recent_position = Some(iridium.get_position());
+                
+                //push updates to a vector
+
+                let t = iridium.get_last_update();
+                if t != 0{
+                    times.push(t);
+                    positions.push(iridium.get_position());
                 }
             }
             
             if let Some(sondehub) = &self.sondehub {
                 let sondehub = sondehub.clone();
-                let update_time = sondehub.get_last_update();
-                if most_recent_time.is_none() || update_time >= most_recent_time.unwrap() {
-                    most_recent_time = Some(update_time);
-                    most_recent_position = Some(sondehub.get_position());
+                
+                //push updates to a vector
+
+                let t = sondehub.get_last_update();
+                if t != 0{
+                    times.push(t);
+                    positions.push(sondehub.get_position());
                 }
-            }
+            }   
+            let res = Tracker::return_valid_pos_time(positions,times);
+
+
+            if res.is_some(){
+                most_recent_position = Some(res.unwrap().0);
+                most_recent_time = Some(res.unwrap().1);
+            }            
             
             //Update struct and log to CSV
             if self.csv_path.is_some() && most_recent_time.is_some() && most_recent_time.unwrap() != self.last_update{

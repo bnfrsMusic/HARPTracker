@@ -29,6 +29,10 @@ pub static APRS_CALLSIGN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::
 pub static TRACKER: Lazy<Mutex<Tracker>> = Lazy::new(|| Mutex::new(Tracker::new()));
 pub static LOCATION: Lazy<Mutex<Coords>> = Lazy::new(|| Mutex::new(Coords::new()));
 
+//API Keys
+pub static APRS_KEY: &str = "APRSKEY";
+
+
 // Return the current UTC time formatted
 #[tauri::command]
 fn utc() -> String {
@@ -83,7 +87,7 @@ fn get_aprs_callsign() -> String {
 fn set_aprs() -> bool {
     let aprs_call = APRS_CALLSIGN.lock().unwrap();
     if !aprs_call.is_empty() {
-        TRACKER.lock().unwrap().new_aprs("186239.PvPtIQBgYaOM92d", aprs_call.as_str());
+        TRACKER.lock().unwrap().new_aprs(APRS_KEY, aprs_call.as_str());
         TRACKER.lock().unwrap().new_sondehub(aprs_call.as_str());
         true
     } else {

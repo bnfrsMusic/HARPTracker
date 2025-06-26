@@ -74,8 +74,8 @@ impl APRS {
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                self.alt = latest_entry["altitude"].as_f64()
-                    // .and_then(|s| s.parse::<f64>().ok())
+                self.alt = latest_entry["altitude"].as_str()
+                    .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
                 self.ground_speed = latest_entry["speed"].as_f64()
