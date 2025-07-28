@@ -3,34 +3,34 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use reqwest::blocking::Client;
 use serde_json::Value;
 
+use crate::track_lib::position_time::PositionTime;
+use crate::track_lib::tracking_type::TrackingType;
+
 
 #[derive(Clone)]
 pub struct Iridium {
     active: bool,
+    tracking_type: TrackingType,
     base_url: String,
     modem: String,
     client: Client,
-    lat: f64,
-    long: f64,
-    alt: f64,
+    position_time: PositionTime,
     vertical_velocity: f64,
     ground_speed: f64,
-    datetime: u64,
 }
 
 impl Iridium {
     pub fn new(base_url: &str, modem: &str) -> Self {
         Self {
             active: true,
+            tracking_type: TrackingType::Iridium,
             base_url: base_url.to_string(),
             modem: modem.to_string(),
             client: Client::new(),
-            lat: 0.0,
-            long: 0.0,
-            alt: 0.0,
+            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0},
             vertical_velocity: 0.0,
             ground_speed: 0.0,
-            datetime: 0,
+
         }
     }
 
@@ -66,22 +66,22 @@ impl Iridium {
                         let dte_idx = fields.iter().position(|v| v == "datetime").unwrap();
 
                         //Set the values
-                        self.lat = latest_entry[lat_idx].as_f64().unwrap();
-                        self.long = latest_entry[lon_idx].as_f64().unwrap();
-                        self.alt = latest_entry[alt_idx].as_f64().unwrap();
+                        self.position_time.lat = latest_entry[lat_idx].as_f64().unwrap();
+                        self.position_time.lon = latest_entry[lon_idx].as_f64().unwrap();
+                        self.position_time.alt = latest_entry[alt_idx].as_f64().unwrap();
                         self.vertical_velocity = latest_entry[vert_idx].as_f64().unwrap();
                         self.ground_speed = latest_entry[grnd_idx].as_f64().unwrap();
-                        self.datetime = latest_entry[dte_idx].as_u64().unwrap();
+                        self.position_time.last_update = latest_entry[dte_idx].as_u64().unwrap();
 
                         let current_time = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .unwrap_or_default()
                             .as_secs();
                         
-                        let age_seconds = current_time.saturating_sub(self.datetime);
+                        let age_seconds = current_time.saturating_sub(self.position_time.last_update);
                         println!(
                             "Iridium Position: Lat: {}, Lon: {}, Alt: {}m, Vertical Velocity: {}m/s, Ground Speed: {}m/s, Last Update: {}s ago",
-                            self.lat, self.long, self.alt, self.vertical_velocity, self.ground_speed, age_seconds
+                            self.position_time.lat, self.position_time.lon, self.position_time.alt, self.vertical_velocity, self.ground_speed, age_seconds
                         );
                     }
                 }
@@ -90,9 +90,12 @@ impl Iridium {
         Ok(())
     }
 
-
+    pub fn get_pos_time(&self) -> PositionTime{
+        self.position_time.clone()
+    }
+    
     pub fn get_position(&self) -> (f64, f64, f64) {
-        (self.lat, self.long, self.alt)
+        (self.position_time.lat, self.position_time.lon, self.position_time.alt)
     }
     
     pub fn get_speed(&self) -> f64 {
@@ -100,7 +103,7 @@ impl Iridium {
     }
     
     pub fn get_last_update(&self) -> u64 {
-        self.datetime
+        self.position_time.last_update
     }
 
 }

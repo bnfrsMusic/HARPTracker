@@ -4,6 +4,8 @@ use chrono::Utc;
 use once_cell::sync::Lazy;
 use track_lib::tracker::Tracker;
 use std::{sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
+use dotenvy::dotenv;
+use std::env;
 
 pub struct Coords {
     lat: f64,
@@ -30,7 +32,13 @@ pub static TRACKER: Lazy<Mutex<Tracker>> = Lazy::new(|| Mutex::new(Tracker::new(
 pub static LOCATION: Lazy<Mutex<Coords>> = Lazy::new(|| Mutex::new(Coords::new()));
 
 //API Keys
-pub static APRS_KEY: &str = "APRSKEY";
+pub static APRSFI_API_KEY: Lazy<String> = Lazy::new(|| {
+    dotenv().ok(); // Load environment variables from `.env`
+    env::var("APRSFI_API_KEY").unwrap_or_else(|_| {
+        eprintln!("Warning: APRS_KEY not set in .env file!");
+        String::new()
+    })
+});
 
 
 // Return the current UTC time formatted
@@ -87,13 +95,32 @@ fn get_aprs_callsign() -> String {
 fn set_aprs() -> bool {
     let aprs_call = APRS_CALLSIGN.lock().unwrap();
     if !aprs_call.is_empty() {
-        TRACKER.lock().unwrap().new_aprs(APRS_KEY, aprs_call.as_str());
+        TRACKER.lock().unwrap().new_aprs(APRSFI_API_KEY.as_str(), aprs_call.as_str());
         TRACKER.lock().unwrap().new_sondehub(aprs_call.as_str());
+
         true
     } else {
         false
     }
 }
+
+///Create the Arduino Module and collect errors into String
+// #[tauri::command]
+// fn set_arduino() -> String{
+//     let mut tracker =TRACKER.lock().unwrap();
+    
+//     if !tracker.is_arduino_active(){
+//         TRACKER.lock().unwrap().new_arduino(None, None);
+//         let t= TRACKER.lock().unwrap().setup_arduino();
+//         let mut r = String::new();
+//         for err in t {
+//             r = format!("{}\nERROR: {:?}\n", r, err);
+//         }
+//         return r;
+//     }
+
+//     "".into()
+// }
 
 // Init Iridium modem with current ID
 #[tauri::command]
@@ -211,13 +238,14 @@ fn is_iridium_active() -> bool{
 // Application run
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             utc, date, 
             set_irr_modem, get_irr_modem, 
             set_aprs_callsign, get_aprs_callsign, 
-            set_aprs, set_iridium, 
+            set_aprs, set_iridium,
             update, 
             get_position, get_lat, get_long, get_alt,
             get_last_update, is_aprs_active, is_iridium_active

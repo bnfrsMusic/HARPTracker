@@ -28,3 +28,4 @@ reqwest = { version = "0.12.9", features = ["blocking", "json"] }
 serialport = "4.7.0"
 csv = "1.1"
 dirs = "6.0.0"
+dotenvy = "0.15.7"

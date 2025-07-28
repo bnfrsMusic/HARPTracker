@@ -2,20 +2,21 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::track_lib::position_time::PositionTime;
+use crate::track_lib::tracking_type::TrackingType;
+
 #[derive(Clone)]
 pub struct APRS {
     active: bool,
+    tracking_type: TrackingType,
     api_key: String,
     base_url: String,
     call_sign: String,
     client: Client,
-    lat: f64,
-    long: f64,
-    alt: f64,
+    position_time: PositionTime,
     vertical_velocity: f64,
     ground_speed: f64,
     datetime: f64,
-    last_update: u64,
     comment: String,
     symbol: String,
     path: String,
@@ -25,17 +26,15 @@ impl APRS {
     pub fn new(api_key: &str, call_sign: &str) -> Self {
         Self {
             active: true,
+            tracking_type: TrackingType::APRS,
             api_key: api_key.to_string(),
             base_url: "https://api.aprs.fi/api".to_string(),
             call_sign: call_sign.to_string(),
             client: Client::new(),
-            lat: 0.0,
-            long: 0.0,
-            alt: 0.0,
+            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0},
             vertical_velocity: 0.0,
             ground_speed: 0.0,
             datetime: 0.0,
-            last_update: 0,
             comment: String::new(),
             symbol: String::new(),
             path: String::new(),
@@ -66,16 +65,15 @@ impl APRS {
         if let Some(entries) = response["entries"].as_array() {
             if let Some(latest_entry) = entries.first() {
                 // Extract position data
-                self.lat = latest_entry["lat"].as_str()
+                self.position_time.lat = latest_entry["lat"].as_str()
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                self.long = latest_entry["lng"].as_str()
+                self.position_time.lon = latest_entry["lng"].as_str()
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                self.alt = latest_entry["altitude"].as_str()
-                    .and_then(|s| s.parse::<f64>().ok())
+                self.position_time.alt = latest_entry["altitude"].as_f64()
                     .unwrap_or(0.0);
                 
                 self.ground_speed = latest_entry["speed"].as_f64()
@@ -89,7 +87,7 @@ impl APRS {
                 if let Some(time_str) = latest_entry["lasttime"].as_str() {
                     if let Ok(time) = time_str.parse::<f64>() {
                         self.datetime = time;
-                        self.last_update = time as u64;
+                        self.position_time.last_update = time as u64;
                     }
                 }
                 
@@ -104,12 +102,12 @@ impl APRS {
                     .unwrap_or_default()
                     .as_secs();
                 
-                let age_seconds = current_time.saturating_sub(self.last_update);
+                let age_seconds = current_time.saturating_sub(self.position_time.last_update);
 
                 
                 println!(
                     "APRS Position: Call: {}, Lat: {}, Lon: {}, Alt: {}m, Speed: {} km/h, Last Update: {}s ago",
-                    self.call_sign, self.lat, self.long, self.alt, self.ground_speed, age_seconds
+                    self.call_sign, self.position_time.lat, self.position_time.lon, self.position_time.alt, self.ground_speed, age_seconds
                 );
                 
                 return Ok(());
@@ -119,8 +117,12 @@ impl APRS {
         Err("Failed to parse position data from response".into())
     }
     
+    pub fn get_pos_time(&self) -> PositionTime{
+        self.position_time.clone()
+    }
+
     pub fn get_position(&self) -> (f64, f64, f64) {
-        (self.lat, self.long, self.alt)
+        (self.position_time.lat, self.position_time.lon, self.position_time.alt)
     }
     
     pub fn get_speed(&self) -> f64 {
@@ -128,7 +130,7 @@ impl APRS {
     }
     
     pub fn get_last_update(&self) -> u64 {
-        self.last_update
+        self.position_time.last_update
     }
     
     pub fn get_comment(&self) -> &str {
