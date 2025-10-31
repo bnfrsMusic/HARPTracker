@@ -1,5 +1,4 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
   "productName": "harp_tracker",
   "version": "0.1.0",
   "identifier": "com.harp_tracker.app",

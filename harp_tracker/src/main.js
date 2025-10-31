@@ -255,7 +255,7 @@ async function handleIridiumInput(event) {
 async function handleAprsInput(event) {
   const newValue = event.target.value.trim();
   
-  // Only update if the value has actually changed
+  //update if the value has actually changed
   if (newValue !== previousAprsValue) {
     previousAprsValue = newValue;
     
@@ -313,14 +313,14 @@ async function getPosition() {
 //------------------------------Map Functions/Handlers------------------------------
 
 
-// Initialize the map iframe
+//Init the map iframe
 function initMapIframe() {
   const mapIframe = document.querySelector('.screen');
   
-  // Set the iframe source to our map HTML file
+  // Set the iframe source to the map HTML file
   mapIframe.src = 'map.html';
   
-  // Listen for messages from the iframe
+  //Listen for messages from the iframe
   window.addEventListener('message', (event) => {
     // Check if the map is ready
     if (event.data && event.data.type === 'MAP_READY') {
@@ -373,7 +373,7 @@ function updateMap(latitude, longitude, altitude) {
 
 //------------------------------Cleanup------------------------------
 
-// Cleanup function if needed (e.g., when component unmounts)
+// Cleanup function if needed
 function cleanup() {
   if (utcIntervalId) clearInterval(utcIntervalId);
   if (trackerIntervalId) clearInterval(trackerIntervalId);
