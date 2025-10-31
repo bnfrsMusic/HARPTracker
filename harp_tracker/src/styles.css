@@ -24,11 +24,15 @@
 }
 
 body {
-    margin: -2em 0;
+    margin: 0;
     padding: 0;
     overflow-x: hidden;
     background: #f6f6f6;
     font-family: afacad-flux, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 h1 {
@@ -37,14 +41,14 @@ h1 {
     font-size: clamp(2rem, 5vw, 5rem);
     text-align: center;
     font-weight: normal;
-    margin: 0.5em 0;
+    margin: -2rem 0 2rem;
 }
 
 h2 {
-    font-family: courier-prime, monospace;
+    font-family: afacad-flux, sans-serif;
     color: black;
     text-align: center;
-    font-size: clamp(1.2rem, 2vw, 1.7rem);
+    font-size: clamp(1.7rem, 2vw, 2.2rem);
     margin: 0.5em 0;
 }
 
@@ -233,7 +237,6 @@ button.client {
 }
 
 .dropdown-content {
-    display: none;
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -241,10 +244,6 @@ button.client {
     border: 1px solid black;
     width: 100%;
     margin: 3.1rem 0;
-}
-
-.dropdown-content.show {
-    display: block;
 }
 
 .dropdown-content p {
@@ -261,19 +260,10 @@ button.client {
     align-items: center;
 }
 
-.client_fields_setup p {
-    margin: 0;
-    font-weight: bold;
-    font-size: clamp(0.8rem, 1vw, 1rem);
-    text-align: right;
-    white-space: nowrap;
-}
-
 .client_fields_setup input[type="text"] {
     width: 100%;
     padding: 0.3rem;
     box-sizing: border-box;
-    font-size: clamp(0.8rem, 1vw, 0.95rem);
 }
 
 @media (max-width: 600px) {

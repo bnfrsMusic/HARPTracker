@@ -44,27 +44,8 @@
             </div>
             <div class="left">
                 <div class="track-setup">
-                    <h2>Tracking</h2>
+                    <h2>Radio Connection</h2>
                     <div class="prediction">
-                        <h3>Prediction:</h3>
-                        <div class="prediction-field"><p>unknown p</p></div>
-                        <h3>Filtering:</h3>
-                        <div class="prediction-field"><p>unknown f</p></div>
-                    </div>
-                </div>
-            </div>
-            <div class="right">
-                <div class="distance_setup">
-                    <h2>Connected Clients</h2>
-                    <div class="client_bar">
-                        <button class="client">muh</button>
-                        <button class="client">muh</button>
-                        <button class="client">muh</button>
-                    </div>
-                </div>
-                <div class="dropdown">
-                    <button class="dropdown-btn" id="dropdownBtn"></button>
-                    <div class="dropdown-content" id="dropdownContent">
                         <div class="client_fields_setup">
                             <p>RFD</p>
                             <input type = "text" id = "rfd-field">
@@ -80,32 +61,26 @@
                     </div>
                 </div>
             </div>
+            <div class="right">
+                <div class="distance_setup">
+                    <h2>Connected Clients</h2>
+                    <div class="client_bar">
+                        <button class="client">Not Usable</button>
+                        <button class="client">Not Usable</button>
+                        <button class="client">Not Usable</button>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <div class="dropdown-content" id="dropdownContent">
+                        <div class="client_fields_setup">
+                            <p>Prediction</p>
+                            <button class="client">Unknown</button>
+                            <p>Filtering</p>
+                            <button class="client">Unknown</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <script>
-            const dropdownBtn = document.getElementById('dropdownBtn');
-            const dropdownContent = document.getElementById('dropdownContent');
-
-            dropdownBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                dropdownContent.classList.toggle('show');
-                dropdownBtn.classList.toggle('active');
-            });
-
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.dropdown')) {
-                    dropdownContent.classList.remove('show');
-                    dropdownBtn.classList.remove('active');
-                }
-            });
-
-            const dropdownItems = document.querySelectorAll('.dropdown-item');
-            dropdownItems.forEach(item => {
-                item.addEventListener('click', function() {
-                    console.log('Selected:', this.textContent);
-                    dropdownContent.classList.remove('show');
-                    dropdownBtn.classList.remove('active');
-                });
-            });
-        </script>
     </body>
 </html>
