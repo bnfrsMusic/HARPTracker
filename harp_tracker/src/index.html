@@ -9,82 +9,103 @@
     </head>
 
     <body>
-        <div class = "parts-layout">
-            <div class = "top">
+        <div class="parts-layout">
+            <div class="top">
                 <h1>HARP TRACKER</h1>
                 <p id="console-text">console text</p>
             </div>
-            <div class = "center">
+            <div class="center">
                 <div class="signal_flexbox">
-                    <button class="signal" id = "rfd_butt">
+                    <button class="signal" id="rfd_butt">
                         <p>RFD</p>
                     </button>
-                    <button class="signal" id = "iridium_butt">
+                    <button class="signal" id="iridium_butt">
                         <p>Iridium</p>
                     </button>
-                    <button class="signal" id = "aprs_butt">
+                    <button class="signal" id="aprs_butt">
                         <p>APRS</p>
                     </button>
-                    <button class="signal" id = "ubiquiti_butt">
+                    <button class="signal" id="ubiquiti_butt">
                         <p>Ubiquiti</p>
                     </button>
-                    <button class="signal" id = "arduino_butt">
+                    <button class="signal" id="arduino_butt">
                         <p>Arduino</p>
                     </button>
                 </div>
-                <div class = "frame-container">
-                    <iframe class = "screen"></iframe>
-                    <div class = "frame-info">
-                        <div class = "frame-info-left">
-                            <p id = "lat">Latitude, </p>
-                            <p id = "long">Longitude</p>
-                            <p><b>|</b></p>
-                            <p id = "alt">Altitude</p>
-                        </div>
-                        <div class = "frame-info-right">
-                            <p id = "city">City, </p>
-                            <p id = "state">State</p>
-                        </div>
+                <div class="frame-container">
+                    <iframe class="screen"></iframe>
+                    <div class="frame-info">
+                        <p id="utc-msg">utc</p>
+                        <p id="last-update">last update</p>
                     </div>
                 </div>
             </div>
-            <div class = "bottom">
-                <p id="utc-msg">utc</p>
-                <p id="last-update">last update</p>
+            <div class="bottom">
             </div>
-            <div class = "left">
-                <h2>Radio Connectivity</h2>
-                <div class="tweak-setup">
-                    <h3 id="pan"><b>Pan:</b> 0°</h3>
-                    <h3 id="tilt"><b>Tilt:</b> 0°</h3>
-                </div>
+            <div class="left">
                 <div class="track-setup">
-                    <div class="tracking">
-                        <img id="trackparts" src="assets\up.png" />
-                        <img id="trackparts" src="assets\right.png" />
-                        <img id="trackparts" src="assets\control.png" />
-                        <img id="trackparts" src="assets\left.png" />
-                        <img id="trackparts" src="assets\down.png" />
+                    <h2>Tracking</h2>
+                    <div class="prediction">
+                        <h3>Prediction:</h3>
+                        <div class="prediction-field"><p>unknown p</p></div>
+                        <h3>Filtering:</h3>
+                        <div class="prediction-field"><p>unknown f</p></div>
                     </div>
                 </div>
-                <div class = "radio-setup">
-                    <h3>APRS Callsign</h3>
-                    <input type = "text" id = "aprs-field">
-                    <h3>Iridium Modem</h3>
-                    <input type = "text" id = "iridium-field">
-                </div>
             </div>
-            <div class = "right">
+            <div class="right">
                 <div class="distance_setup">
-                    <h2>Distance Overview</h2>
-                    <div class = "measuring">
-                        <img class="line_bar" src="assets/line_bar.png" />
-                        <div class = "bar-measure">
-                            <div id = "bar-measure-line"></div>
+                    <h2>Connected Clients</h2>
+                    <div class="client_bar">
+                        <button class="client">muh</button>
+                        <button class="client">muh</button>
+                        <button class="client">muh</button>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <button class="dropdown-btn" id="dropdownBtn"></button>
+                    <div class="dropdown-content" id="dropdownContent">
+                        <div class="client_fields_setup">
+                            <p>RFD</p>
+                            <input type = "text" id = "rfd-field">
+                            <p>Iridium</p>
+                            <input type = "text" id = "iridium-field">
+                            <p>APRS</p>
+                            <input type = "text" id = "aprs-field">
+                            <p>Ubiquiti</p>
+                            <input type = "text" id = "ubiquiti-field" placeholder="Not Usable">
+                            <p>Arduino</p>
+                            <input type = "text" id = "arduino-field" placeholder="Not Usable">
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        <script>
+            const dropdownBtn = document.getElementById('dropdownBtn');
+            const dropdownContent = document.getElementById('dropdownContent');
+
+            dropdownBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdownContent.classList.toggle('show');
+                dropdownBtn.classList.toggle('active');
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.dropdown')) {
+                    dropdownContent.classList.remove('show');
+                    dropdownBtn.classList.remove('active');
+                }
+            });
+
+            const dropdownItems = document.querySelectorAll('.dropdown-item');
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    console.log('Selected:', this.textContent);
+                    dropdownContent.classList.remove('show');
+                    dropdownBtn.classList.remove('active');
+                });
+            });
+        </script>
     </body>
 </html>

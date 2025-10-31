@@ -227,6 +227,7 @@ async function updateLastUpdate() {
   }
 }
 
+
 //------------------------------Input Handlers------------------------------
 
 
@@ -297,13 +298,16 @@ async function getPosition() {
       previousLat = currentLat;
       previousLong = currentLong;
     }
+
+    //Update altitude bar
+    const altitudeFt = Math.round(altitude * 3.28084); 
+    updateAltitudeBar(altitudeFt);
+
+
   } catch (error) {
     console_text.textContent = "Error getting position:" + error;
-
-    // console.error("Error getting position:", error);
   }
-  const measure = 100 * (1 - (alt.textContent/117500));
-  document.getElementById("bar-measure-line").style.padding = measure.toString() + "%";
+
 }
 
 //------------------------------Map Functions/Handlers------------------------------
