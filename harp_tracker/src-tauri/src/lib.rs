@@ -1,4 +1,6 @@
-pub mod track_lib;  
+
+pub mod track_lib;
+
 // Imports
 use chrono::Utc;
 use once_cell::sync::Lazy;
@@ -10,7 +12,7 @@ use std::env;
 pub struct Coords {
     lat: f64,
     long: f64,
-    alt: f64
+    alt: f64 
 }
 
 impl Coords {

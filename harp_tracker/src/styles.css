@@ -1,22 +1,22 @@
 @font-face {
     font-family: orbitron;
     font-weight: normal;
-    src: url("Orbitron.ttf") format("truetype");
+    src: url("./fonts/Orbitron.ttf") format("truetype");
 }
 @font-face {
     font-family: courier-prime;
     font-weight: normal;
-    src: url("CourierPrime-Regular.ttf") format("truetype");
+    src: url("./fonts/CourierPrime-Regular.ttf") format("truetype");
 }
 @font-face {
     font-family: afacad-flux;
     font-weight: normal;
-    src: url("AfacadFlux-Regular.ttf") format("truetype");
+    src: url("./fonts/AfacadFlux-Regular.ttf") format("truetype");
 }
 @font-face {
     font-family: afacad-flux;
     font-weight: bold;
-    src: url("AfacadFlux-Bold.ttf") format("truetype");
+    src: url("./fonts/AfacadFlux-Bold.ttf") format("truetype");
 }
 
 * {
