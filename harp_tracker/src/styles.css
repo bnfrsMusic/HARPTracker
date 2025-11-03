@@ -81,6 +81,15 @@ input[type="text"]
     border: 1px solid black;
 }
 
+select
+{
+    font-family: afacad-flux;
+    /* width: 50%; */
+    padding: 0.5em 0;
+    font-size: 1em;
+    border: 1px solid black;
+}
+
 button {
     font-family: afacad-flux, sans-serif;
     font-size: 1em;

@@ -45,6 +45,21 @@ async function init() {
   iridium_butt = document.querySelector("#iridium_butt");
   console_text = document.querySelector("#console-text");
   
+  // filtering method dropdown
+  const filteringMethod = document.querySelector("#filtering-method");
+  if (filteringMethod) {
+    filteringMethod.addEventListener("change", handleFilteringMethodChange);
+    // Load saved
+    try {
+      const savedMethod = await invoke("get_filtering_method");
+      if (savedMethod) {
+        filteringMethod.value = savedMethod;
+      }
+    } catch (error) {
+      console.error("Error loading filtering method:", error);
+    }
+  }
+  
   // Initialize the map iframe
   initMapIframe();
   
@@ -143,7 +158,12 @@ async function updateTracker() {
     
     // Update position display
     await getPosition();
-    console_text.textContent = "Tracker data updated";
+    {
+      const now = new Date();
+
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      if (console_text) console_text.textContent = `${timeStr}: Tracker data updated`;
+    }
     // console.log("Tracker data updated");
   } catch (error) {
     console_text.textContent = "Error in tracker update cycle:" + error;
@@ -265,6 +285,18 @@ async function handleIridiumInput(event) {
     }
   }
 }
+//for handling filtering method changes
+async function handleFilteringMethodChange(event) {
+  const newValue = event.target.value;
+  try {
+    await invoke("set_filtering_method", { method: newValue });
+    if (console_text) console_text.textContent = "Filtering method updated: " + newValue;
+  } catch (error) {
+    if (console_text) console_text.textContent = "Error updating filtering method: " + error;
+    else console.error("Error updating filtering method:", error);
+  }
+}
+
 // Handle APRS input changes
 async function handleAprsInput(event) {
   const newValue = event.target.value.trim();
