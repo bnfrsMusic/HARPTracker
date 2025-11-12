@@ -216,11 +216,10 @@ impl Tracker{
                 let pt = sondehub.get_pos_time();
                 positions.push(pt.clone());
                 eprintln!("{:?}", Self::write_to_csv(TrackingType::SondeHub, pt, self.csv_path.clone()));
-
             }
         }
 
-        let most_recent_position: Option<PositionTime> = PositionTime::return_valid_pos_time(positions, EstimationType::Median);
+        let most_recent_position: Option<PositionTime> = PositionTime::return_valid_pos_time(positions, EstimationType::Recent);
 
         //Update struct and log to CSV if we have a new update
         if let Some(new_pos) = most_recent_position.clone() {
@@ -228,6 +227,37 @@ impl Tracker{
         }
 
         err
+    }
+
+    pub fn get_position_with_filtering(&self, method: EstimationType) -> (f64, f64, f64) {
+        let mut positions: Vec<PositionTime> = vec![];
+
+        if let Some(aprs) = &self.aprs {
+            let t = aprs.get_last_update();
+            if t != 0 {
+                positions.push(aprs.get_pos_time());
+            }
+        }
+
+        if let Some(iridium) = &self.iridium {
+            let t = iridium.get_last_update();
+            if t != 0 {
+                positions.push(iridium.get_pos_time());
+            }
+        }
+
+        if let Some(sondehub) = &self.sondehub {
+            let t = sondehub.get_last_update();
+            if t != 0 {
+                positions.push(sondehub.get_pos_time());
+            }
+        }
+
+        if let Some(filtered_pos) = PositionTime::return_valid_pos_time(positions, method) {
+            (filtered_pos.lat, filtered_pos.lon, filtered_pos.alt)
+        } else {
+            (self.position_time.lat, self.position_time.lon, self.position_time.alt)
+        }
     }
 
 

@@ -45,23 +45,42 @@ async function init() {
   iridium_butt = document.querySelector("#iridium_butt");
   console_text = document.querySelector("#console-text");
   
+  // filtering method dropdown
+  const filteringMethod = document.querySelector("#filtering-method");
+  if (filteringMethod) {
+    filteringMethod.addEventListener("change", handleFilteringMethodChange);
+    // Load saved
+    try {
+      const savedMethod = await invoke("get_filtering_method");
+      if (savedMethod) {
+        filteringMethod.value = savedMethod;
+      }
+    } catch (error) {
+      console.error("Error loading filtering method:", error);
+    }
+  }
+  
   // Initialize the map iframe
   initMapIframe();
   
   // Set up event listeners for input fields
-  ir_mod.addEventListener("blur", handleIridiumInput);
-  ir_mod.addEventListener("keypress", function(event) {
-    if (event.key === "Enter") {
-      handleIridiumInput(event);
-    }
-  });
-  
-  aprs_call.addEventListener("blur", handleAprsInput);
-  aprs_call.addEventListener("keypress", function(event) {
-    if (event.key === "Enter") {
-      handleAprsInput(event);
-    }
-  });
+  if (ir_mod) {
+    ir_mod.addEventListener("blur", handleIridiumInput);
+    ir_mod.addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        handleIridiumInput(event);
+      }
+    });
+  }
+
+  if (aprs_call) {
+    aprs_call.addEventListener("blur", handleAprsInput);
+    aprs_call.addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        handleAprsInput(event);
+      }
+    });
+  }
   
 
   await loadSavedValues();
@@ -90,16 +109,23 @@ async function loadSavedValues() {
     const savedIridium = await invoke("get_irr_modem");
     if (savedIridium) {
       ir_mod.value = savedIridium;
+
+      if (ir_mod) ir_mod.value = savedIridium;
+
       previousIridiumValue = savedIridium;
     }
     
     const savedAprs = await invoke("get_aprs_callsign");
     if (savedAprs) {
       aprs_call.value = savedAprs;
+
+      if (aprs_call) aprs_call.value = savedAprs;
+
       previousAprsValue = savedAprs;
     }
   } catch (error) {
-    console_text.textContent = "Failed to load saved values:" + error;
+    if (console_text) console_text.textContent = "Failed to load saved values:" + error;
+    else console.error("Failed to load saved values:", error);
   }
 }
 
@@ -132,7 +158,12 @@ async function updateTracker() {
     
     // Update position display
     await getPosition();
-    console_text.textContent = "Tracker data updated";
+    {
+      const now = new Date();
+
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      if (console_text) console_text.textContent = `${timeStr}: Tracker data updated`;
+    }
     // console.log("Tracker data updated");
   } catch (error) {
     console_text.textContent = "Error in tracker update cycle:" + error;
@@ -206,14 +237,14 @@ async function updateCityAndState(latitude, longitude) {
                     "";
     
     // Update UI
-    city.textContent = cityName + ",";
-    state.textContent = stateName;
-    
+    if (city) city.textContent = cityName + ",";
+    if (state) state.textContent = stateName;
+
     console.log(`Updated location: ${cityName}, ${stateName}`);
   } catch (error) {
     console.error("Error getting city/state:", error);
-    city.textContent = "Location";
-    state.textContent = "Unknown";
+    if (city) city.textContent = "Location";
+    if (state) state.textContent = "Unknown";
   }
 }
 
@@ -221,7 +252,7 @@ async function updateCityAndState(latitude, longitude) {
 async function updateLastUpdate() {
   try {
     const seconds = await invoke("get_last_update");
-    last_update.textContent = `Last update: ${seconds}s ago`;
+    if (last_update) last_update.textContent = `Last update: ${seconds}s ago`;
   } catch (error) {
     console.error("Error updating last update time:", error);
   }
@@ -243,14 +274,29 @@ async function handleIridiumInput(event) {
       if (newValue !== "") {
         await invoke("set_irr_modem", { id: newValue });
         await invoke("set_iridium");
-        console_text.textContent = "Iridium modem updated:" + newValue;
+
+        if (console_text) console_text.textContent = "Iridium modem updated:" + newValue;
+        else console.log("Iridium modem updated:", newValue);
         
       }
     } catch (error) {
-      console_text.textContent = "Error updating Iridium settings:" + error;
+      if (console_text) console_text.textContent = "Error updating Iridium settings:" + error;
+      else console.error("Error updating Iridium settings:", error);
     }
   }
 }
+//for handling filtering method changes
+async function handleFilteringMethodChange(event) {
+  const newValue = event.target.value;
+  try {
+    await invoke("set_filtering_method", { method: newValue });
+    if (console_text) console_text.textContent = "Filtering method updated: " + newValue;
+  } catch (error) {
+    if (console_text) console_text.textContent = "Error updating filtering method: " + error;
+    else console.error("Error updating filtering method:", error);
+  }
+}
+
 // Handle APRS input changes
 async function handleAprsInput(event) {
   const newValue = event.target.value.trim();
@@ -263,11 +309,13 @@ async function handleAprsInput(event) {
       if (newValue !== "") {
         await invoke("set_aprs_callsign", { id: newValue });
         await invoke("set_aprs");
-        console_text.textContent = "APRS callsign updated:" + newValue;
+        if (console_text) console_text.textContent = "APRS callsign updated:" + newValue;
+        else console.log("APRS callsign updated:", newValue);
 
       }
     } catch (error) {
-      console_text.textContent = "Error updating APRS settings:" + error;
+      if (console_text) console_text.textContent = "Error updating APRS settings:" + error;
+      else console.error("Error updating APRS settings:", error);
     }
   }
 }
@@ -278,10 +326,18 @@ async function getPosition() {
     const currentLong = await invoke("get_long");
     const altitude = await invoke("get_alt");
     
-    lat.textContent = currentLat + ",";
-    long.textContent = currentLong;
-    alt.textContent = altitude + "m";
-    
+    const numLat = Number(currentLat);
+    const numLong = Number(currentLong);
+    const numAlt = Number(altitude);
+
+    if (lat && !Number.isNaN(numLat)) lat.textContent = numLat + ",";
+    if (long && !Number.isNaN(numLong)) long.textContent = numLong;
+    if (alt && !Number.isNaN(numAlt)) alt.textContent = numAlt + "m";
+
+    // Update the map with new pos
+    if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) {
+      updateMap(numLat, numLong, numAlt);
+    }
     // Update the map with the new position
     updateMap(currentLat, currentLong, altitude);
     
@@ -289,23 +345,26 @@ async function getPosition() {
     const hasLocationChanged = 
       previousLat === null || 
       previousLong === null ||
-      Math.abs(currentLat - previousLat) > 0.01 ||
-      Math.abs(currentLong - previousLong) > 0.01;
+      (typeof numLat === 'number' && typeof previousLat === 'number' && Math.abs(numLat - previousLat) > 0.01) ||
+      (typeof numLong === 'number' && typeof previousLong === 'number' && Math.abs(numLong - previousLong) > 0.01);
     
     // Update city and state if location has changed
     if (hasLocationChanged) {
-      updateCityAndState(currentLat, currentLong);
-      previousLat = currentLat;
-      previousLong = currentLong;
+      if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) updateCityAndState(numLat, numLong);
+      previousLat = Number.isFinite(numLat) ? numLat : previousLat;
+      previousLong = Number.isFinite(numLong) ? numLong : previousLong;
     }
 
     //Update altitude bar
-    const altitudeFt = Math.round(altitude * 3.28084); 
-    updateAltitudeBar(altitudeFt);
+    if (!Number.isNaN(numAlt)) {
+      const altitudeFt = Math.round(numAlt * 3.28084); 
+      if (typeof updateAltitudeBar === 'function') updateAltitudeBar(altitudeFt);
+    }
 
 
   } catch (error) {
-    console_text.textContent = "Error getting position:" + error;
+    if (console_text) console_text.textContent = "Error getting position:" + error;
+    else console.error("Error getting position:", error);
   }
 
 }

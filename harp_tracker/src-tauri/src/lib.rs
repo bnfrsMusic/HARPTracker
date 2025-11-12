@@ -1,4 +1,6 @@
-pub mod track_lib;  
+
+pub mod track_lib;
+
 // Imports
 use chrono::Utc;
 use once_cell::sync::Lazy;
@@ -10,7 +12,7 @@ use std::env;
 pub struct Coords {
     lat: f64,
     long: f64,
-    alt: f64
+    alt: f64 
 }
 
 impl Coords {
@@ -30,6 +32,7 @@ pub static IRIDIUM_MODEM: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::
 pub static APRS_CALLSIGN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 pub static TRACKER: Lazy<Mutex<Tracker>> = Lazy::new(|| Mutex::new(Tracker::new()));
 pub static LOCATION: Lazy<Mutex<Coords>> = Lazy::new(|| Mutex::new(Coords::new()));
+pub static FILTERING_METHOD: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::from("Average")));
 
 //API Keys
 pub static APRSFI_API_KEY: Lazy<String> = Lazy::new(|| {
@@ -145,14 +148,24 @@ fn update() -> String {
         r = format!("{}\nERROR: {:?}\n", r, err);
     }
     
+    let filtering_method = FILTERING_METHOD.lock().unwrap().clone();
+    let estimation_type = match filtering_method.as_str() {
+        "Average" => track_lib::position_time::EstimationType::Average,
+        "Median" => track_lib::position_time::EstimationType::Median,
+        "Recent" => track_lib::position_time::EstimationType::Recent,
+        _ => track_lib::position_time::EstimationType::Average,
+    };
+    
     let pos = TRACKER.try_lock().unwrap().get_position();
+    let pos_filtered = TRACKER.try_lock().unwrap().get_position_with_filtering(estimation_type);
     LOCATION.try_lock().unwrap().update((
-        (pos.0 * 1000.0).round() / 1000.0,
-        (pos.1 * 1000.0).round() / 1000.0,
-        (pos.2 * 1000.0).round() / 1000.0
+        (pos_filtered.0 * 1000.0).round() / 1000.0,
+        (pos_filtered.1 * 1000.0).round() / 1000.0,
+        (pos_filtered.2 * 1000.0).round() / 1000.0
     ));
     
     println!("Update result: {}", r);
+    println!("Raw position: {:?}, Filtered position: {:?}", pos, pos_filtered);
     r
 }
 
@@ -234,6 +247,17 @@ fn is_iridium_active() -> bool{
     return false;
 }
 
+// Get current filtering method
+#[tauri::command]
+fn get_filtering_method() -> String {
+    FILTERING_METHOD.lock().unwrap().clone()
+}
+
+// Set filtering method
+#[tauri::command]
+fn set_filtering_method(method: String) {
+    *FILTERING_METHOD.lock().unwrap() = method;
+}
 
 // Application run
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -248,7 +272,8 @@ pub fn run() {
             set_aprs, set_iridium,
             update, 
             get_position, get_lat, get_long, get_alt,
-            get_last_update, is_aprs_active, is_iridium_active
+            get_last_update, is_aprs_active, is_iridium_active,
+            get_filtering_method, set_filtering_method
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

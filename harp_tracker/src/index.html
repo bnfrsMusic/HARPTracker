@@ -48,15 +48,15 @@
                     <div class="prediction">
                         <div class="client_fields_setup">
                             <p>RFD</p>
-                            <input type = "text" id = "rfd-field">
+                            <input type = "text" id = "rfd-field" placeholder="Not Implemented Yet">
                             <p>Iridium</p>
                             <input type = "text" id = "iridium-field">
                             <p>APRS</p>
                             <input type = "text" id = "aprs-field">
                             <p>Ubiquiti</p>
-                            <input type = "text" id = "ubiquiti-field" placeholder="Not Usable">
+                            <input type = "text" id = "ubiquiti-field" placeholder="Not Implemented Yet">
                             <p>Arduino</p>
-                            <input type = "text" id = "arduino-field" placeholder="Not Usable">
+                            <input type = "text" id = "arduino-field" placeholder="Not Implemented Yet">
                         </div>
                     </div>
                 </div>
@@ -65,18 +65,22 @@
                 <div class="distance_setup">
                     <h2>Connected Clients</h2>
                     <div class="client_bar">
-                        <button class="client">Not Usable</button>
-                        <button class="client">Not Usable</button>
-                        <button class="client">Not Usable</button>
+                        <button class="client">Not Implemented Yet</button>
+                        <button class="client">Not Implemented Yet</button>
+                        <button class="client">Not Implemented Yet</button>
                     </div>
                 </div>
                 <div class="dropdown">
                     <div class="dropdown-content" id="dropdownContent">
                         <div class="client_fields_setup">
                             <p>Prediction</p>
-                            <button class="client">Unknown</button>
+                            <button class="client">Not Implemented Yet</button>
                             <p>Filtering</p>
-                            <button class="client">Unknown</button>
+                            <select id="filtering-method" class="client">
+                                <option value="Average">Average</option>
+                                <option value="Median">Median</option>
+                                <option value="Recent">Recent</option>
+                            </select>
                         </div>
                     </div>
                 </div>

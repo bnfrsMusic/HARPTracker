@@ -1,22 +1,22 @@
 @font-face {
     font-family: orbitron;
     font-weight: normal;
-    src: url("Orbitron.ttf") format("truetype");
+    src: url("./fonts/Orbitron.ttf") format("truetype");
 }
 @font-face {
     font-family: courier-prime;
     font-weight: normal;
-    src: url("CourierPrime-Regular.ttf") format("truetype");
+    src: url("./fonts/CourierPrime-Regular.ttf") format("truetype");
 }
 @font-face {
     font-family: afacad-flux;
     font-weight: normal;
-    src: url("AfacadFlux-Regular.ttf") format("truetype");
+    src: url("./fonts/AfacadFlux-Regular.ttf") format("truetype");
 }
 @font-face {
     font-family: afacad-flux;
     font-weight: bold;
-    src: url("AfacadFlux-Bold.ttf") format("truetype");
+    src: url("./fonts/AfacadFlux-Bold.ttf") format("truetype");
 }
 
 * {
@@ -78,6 +78,15 @@ input[type="text"]
     font-family: afacad-flux;
     font-size: 1em;
     width: 50%;
+    border: 1px solid black;
+}
+
+select
+{
+    font-family: afacad-flux;
+    /* width: 50%; */
+    padding: 0.5em 0;
+    font-size: 1em;
     border: 1px solid black;
 }
 
