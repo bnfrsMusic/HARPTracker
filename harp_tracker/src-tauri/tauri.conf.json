@@ -22,12 +22,7 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/Harp1024.ico",
-      "icons/Harp512.ico",
-      "icons/Harp256.ico",
-      "icons/Harp128.ico",
-      "icons/Harp64.ico",
-      "icons/Harp32.ico"
+      "icons/favicon.ico"
     ]
   }
 }

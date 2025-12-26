@@ -446,3 +446,4 @@ function cleanup() {
 window.addEventListener("DOMContentLoaded", init);
 // Cleanup on page unload if needed
 window.addEventListener("beforeunload", cleanup);
+

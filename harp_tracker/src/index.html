@@ -15,23 +15,6 @@
                 <p id="console-text">console text</p>
             </div>
             <div class="center">
-                <div class="signal_flexbox">
-                    <button class="signal" id="rfd_butt">
-                        <p>RFD</p>
-                    </button>
-                    <button class="signal" id="iridium_butt">
-                        <p>Iridium</p>
-                    </button>
-                    <button class="signal" id="aprs_butt">
-                        <p>APRS</p>
-                    </button>
-                    <button class="signal" id="ubiquiti_butt">
-                        <p>Ubiquiti</p>
-                    </button>
-                    <button class="signal" id="arduino_butt">
-                        <p>Arduino</p>
-                    </button>
-                </div>
                 <div class="frame-container">
                     <iframe class="screen"></iframe>
                     <div class="frame-info">
@@ -43,44 +26,52 @@
             <div class="bottom">
             </div>
             <div class="left">
-                <div class="track-setup">
-                    <h2>Radio Connection</h2>
-                    <div class="prediction">
-                        <div class="client_fields_setup">
-                            <p>RFD</p>
-                            <input type = "text" id = "rfd-field" placeholder="Not Implemented Yet">
-                            <p>Iridium</p>
-                            <input type = "text" id = "iridium-field">
-                            <p>APRS</p>
-                            <input type = "text" id = "aprs-field">
-                            <p>Ubiquiti</p>
-                            <input type = "text" id = "ubiquiti-field" placeholder="Not Implemented Yet">
-                            <p>Arduino</p>
-                            <input type = "text" id = "arduino-field" placeholder="Not Implemented Yet">
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="right">
-                <div class="distance_setup">
-                    <h2>Connected Clients</h2>
-                    <div class="client_bar">
-                        <button class="client">Not Implemented Yet</button>
-                        <button class="client">Not Implemented Yet</button>
-                        <button class="client">Not Implemented Yet</button>
-                    </div>
-                </div>
-                <div class="dropdown">
-                    <div class="dropdown-content" id="dropdownContent">
-                        <div class="client_fields_setup">
-                            <p>Prediction</p>
-                            <button class="client">Not Implemented Yet</button>
-                            <p>Filtering</p>
+                <div class="connectivity_setup">
+                    <h2>Connectivity</h2>
+                    <div class="client_fields_setup">
+                            <div class="dropdown">
+                                <h3>Add Radio Connection</h3>
+                                <select id="filtering-method" class="client">
+                                    <option value="iridium-field">Iridium</option>
+                                    <option value="aprs-field">APRS</option>
+                                </select>
+                            <input type="text">
+                            </div>
+
+                        <div class="dropdown">
+                            <h3>Prediction Adjustments</h3>
+                            <button>Not Implemented Yet</button>
                             <select id="filtering-method" class="client">
                                 <option value="Average">Average</option>
                                 <option value="Median">Median</option>
                                 <option value="Recent">Recent</option>
                             </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="right">
+                <div class="connected_clients_setup">
+                    <h2>Connected Clients</h2>
+                    <div class = "client_fields_setup">
+                        <div class = "dropdown">
+                            <h3>Active Radio</h3>
+                            <div class = "connected_radio">
+                                <div class = "signal_flexbox">
+                                    <button>
+                                        APRS
+                                        <span class="cancel-btn">×</span>
+                                    </button>
+                                    <button>
+                                        Iridium
+                                        <span class="cancel-btn">×</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <h3>Active Clients</h3>
+                            <div class = "connected_clients">
+
+                            </div>
                         </div>
                     </div>
                 </div>
