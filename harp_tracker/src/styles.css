@@ -115,7 +115,7 @@ Grid Layout for the main page
         "header header header"               
         "left main right";
     grid-template-rows: auto 1fr auto;
-    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-columns: 0.5fr 2fr 0.5fr;
     gap: 1rem;
     padding: 2rem 1rem 0;
 }
@@ -123,7 +123,7 @@ Grid Layout for the main page
 .top {
     grid-area: header;
     text-align: center;
-    line-height: 3rem;
+    line-height: 5rem;
 }
 
 .left {
@@ -148,7 +148,7 @@ Center grid, screen for live tracking information
     flex-direction: column;
     background-color: white;
     border: 1px solid black;
-    height: clamp(350px, 40vh, 400px);
+    height: clamp(480px, 40vh, 500px);
     overflow: hidden;
     margin: 0 auto;
     max-width: 90%;
@@ -179,7 +179,7 @@ iframe.screen {
 /*
 Left grid, Connectivity setup
 */
-.connectivity_setup {
+.connectivity_setup, .connected_clients_setup {
     justify-content: center;
     align-items: center;
     margin: -8em 0;
@@ -225,12 +225,6 @@ Left grid, Connectivity setup
 /*
 Right grid, Connected Clients setup
 */
-.connected_clients_setup {
-    justify-content: center;
-    align-items: center;
-    margin: -8em 0;
-    margin-right: 1rem;
-}
 
 .connected_radio {
     margin: 0 3rem;
@@ -243,6 +237,10 @@ Right grid, Connected Clients setup
     justify-content: center;
     gap: 0.5rem;
     margin-bottom: 1rem;
+}
+
+#aprs_butt, #iridium_butt {
+    display: none;
 }
 
 .cancel-btn {

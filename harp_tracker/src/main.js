@@ -10,6 +10,8 @@ let last_update;
 let city, state;
 let aprs_butt, iridium_butt;
 let console_text;
+let radioDropdown;
+let radioInput;
 
 // Track previous values to avoid unnecessary updates
 let previousIridiumValue = "";
@@ -33,8 +35,8 @@ async function init() {
   // Get DOM elements
   utcMsg = document.querySelector("#utc-msg");
   dateMsg = document.querySelector("#date-msg");
-  ir_mod = document.querySelector("#iridium-field");
-  aprs_call = document.querySelector("#aprs-field");
+  ir_mod = document.querySelector("#iridium_field");
+  aprs_call = document.querySelector("#aprs_field");
   lat = document.querySelector("#lat");
   long = document.querySelector("#long");
   alt = document.querySelector("#alt");
@@ -44,6 +46,8 @@ async function init() {
   aprs_butt = document.querySelector("#aprs_butt");
   iridium_butt = document.querySelector("#iridium_butt");
   console_text = document.querySelector("#console-text");
+  radioDropdown = document.querySelector("#radio-method");
+  radioInput = document.querySelector(".dropdown input[type='text']");
   
   // filtering method dropdown
   const filteringMethod = document.querySelector("#filtering-method");
@@ -59,6 +63,78 @@ async function init() {
       console.error("Error loading filtering method:", error);
     }
   }
+
+
+// Set up event listener for dropdown changes
+if (radioDropdown && radioInput) {
+  // Update input placeholder based on selection
+  radioDropdown.addEventListener("change", handleRadioDropdownChange);
+  
+  // Set initial placeholder
+  updateInputPlaceholder(radioDropdown.value);
+  
+  // Set up input field event listeners
+  radioInput.addEventListener("blur", handleRadioInputBlur);
+  radioInput.addEventListener("keypress", function(event) {
+    if (event.key === "Enter") {
+      handleRadioInputBlur(event);
+    }
+  });
+  
+  // Load saved value for current selection
+  loadRadioInputValue(radioDropdown.value);
+}
+
+// Function to handle dropdown selection changes
+function handleRadioDropdownChange(event) {
+  const selectedRadio = event.target.value;
+  updateInputPlaceholder(selectedRadio);
+  loadRadioInputValue(selectedRadio);
+}
+
+function updateInputPlaceholder(radioType) {
+  const radioInput = document.querySelector(".dropdown input[type='text']");
+  if (!radioInput) return;
+  
+  if (radioType === "iridium_field") {
+    radioInput.placeholder = "Enter Iridium Modem ID";
+  } else if (radioType === "aprs_field") {
+    radioInput.placeholder = "Enter APRS Callsign";
+  }
+}
+
+async function loadRadioInputValue(radioType) {
+  const radioInput = document.querySelector(".dropdown input[type='text']");
+  if (!radioInput) return;
+  
+  try {
+    if (radioType === "iridium_field") {
+      const savedIridium = await invoke("get_irr_modem");
+      radioInput.value = savedIridium || "";
+    } else if (radioType === "aprs_field") {
+      const savedAprs = await invoke("get_aprs_callsign");
+      radioInput.value = savedAprs || "";
+    }
+  } catch (error) {
+    if (console_text) console_text.textContent = "Error loading radio value: " + error;
+    else console.error("Error loading radio value:", error);
+  }
+}
+
+async function handleRadioInputBlur(event) {
+  const radioDropdown = document.querySelector("#radio-method");
+  if (!radioDropdown) return;
+  
+  const selectedRadio = radioDropdown.value;
+  const newValue = event.target.value.trim();
+  
+  // Route to appropriate handler based on selection
+  if (selectedRadio === "iridium_field") {
+    await handleIridiumUpdate(newValue);
+  } else if (selectedRadio === "aprs_field") {
+    await handleAprsUpdate(newValue);
+  }
+}
   
   // Initialize the map iframe
   initMapIframe();
@@ -174,20 +250,20 @@ async function updateTracker() {
 // Update status indicators for active services
 async function updateActiveStatus() {
   try {
-    // Check if active and update the button color
+    // Check if active and show button on the Connected Clients
     const isAprsActive = await invoke("is_aprs_active");
     if (isAprsActive) {
-      aprs_butt.style.backgroundColor = "#4CAF50"; 
+      aprs_butt.style.display = "inline";
     } else {
-      aprs_butt.style.backgroundColor = "white"; 
+      aprs_butt.style.display = "none"; 
     }
     
     try {
       const isIridiumActive = await invoke("is_iridium_active");
       if (isIridiumActive) {
-        iridium_butt.style.backgroundColor = "#4CAF50"; 
+       iridium_butt.style.display = "inline";
       } else {
-        iridium_butt.style.backgroundColor = "white"; 
+        iridium_butt.style.display = "none"; 
       }
     } catch (error) {
       console_text.textContent = "Error checking Iridium status:" + error;
@@ -263,26 +339,17 @@ async function updateLastUpdate() {
 
 
 // Handle Iridium input changes
-async function handleIridiumInput(event) {
-  const newValue = event.target.value.trim();
-  
-  // Only update if the value has actually changed
-  if (newValue !== previousIridiumValue) {
-    previousIridiumValue = newValue;
-    
-    try {
-      if (newValue !== "") {
-        await invoke("set_irr_modem", { id: newValue });
-        await invoke("set_iridium");
-
-        if (console_text) console_text.textContent = "Iridium modem updated:" + newValue;
-        else console.log("Iridium modem updated:", newValue);
-        
-      }
-    } catch (error) {
-      if (console_text) console_text.textContent = "Error updating Iridium settings:" + error;
-      else console.error("Error updating Iridium settings:", error);
+async function handleIridiumUpdate(newValue) {
+  try {
+    if (newValue !== "") {
+      await invoke("set_irr_modem", { id: newValue });
+      await invoke("set_iridium");
+      if (console_text) console_text.textContent = "Iridium modem updated: " + newValue;
+      else console.log("Iridium modem updated:", newValue);
     }
+  } catch (error) {
+    if (console_text) console_text.textContent = "Error updating Iridium settings: " + error;
+    else console.error("Error updating Iridium settings:", error);
   }
 }
 //for handling filtering method changes
@@ -298,27 +365,20 @@ async function handleFilteringMethodChange(event) {
 }
 
 // Handle APRS input changes
-async function handleAprsInput(event) {
-  const newValue = event.target.value.trim();
-  
-  //update if the value has actually changed
-  if (newValue !== previousAprsValue) {
-    previousAprsValue = newValue;
-    
-    try {
-      if (newValue !== "") {
-        await invoke("set_aprs_callsign", { id: newValue });
-        await invoke("set_aprs");
-        if (console_text) console_text.textContent = "APRS callsign updated:" + newValue;
-        else console.log("APRS callsign updated:", newValue);
-
-      }
-    } catch (error) {
-      if (console_text) console_text.textContent = "Error updating APRS settings:" + error;
-      else console.error("Error updating APRS settings:", error);
+async function handleAprsUpdate(newValue) {
+  try {
+    if (newValue !== "") {
+      await invoke("set_aprs_callsign", { id: newValue });
+      await invoke("set_aprs");
+      if (console_text) console_text.textContent = "APRS callsign updated: " + newValue;
+      else console.log("APRS callsign updated:", newValue);
     }
+  } catch (error) {
+    if (console_text) console_text.textContent = "Error updating APRS settings: " + error;
+    else console.error("Error updating APRS settings:", error);
   }
 }
+
 // Get and display current position
 async function getPosition() {
   try {

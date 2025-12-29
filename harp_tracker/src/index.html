@@ -31,9 +31,9 @@
                     <div class="client_fields_setup">
                             <div class="dropdown">
                                 <h3>Add Radio Connection</h3>
-                                <select id="filtering-method" class="client">
-                                    <option value="iridium-field">Iridium</option>
-                                    <option value="aprs-field">APRS</option>
+                                <select id="radio-method" class="client">
+                                    <option value="iridium_field">Iridium</option>
+                                    <option value="aprs_field">APRS</option>
                                 </select>
                             <input type="text">
                             </div>
@@ -58,11 +58,11 @@
                             <h3>Active Radio</h3>
                             <div class = "connected_radio">
                                 <div class = "signal_flexbox">
-                                    <button>
+                                    <button id = "aprs_butt">
                                         APRS
                                         <span class="cancel-btn">×</span>
                                     </button>
-                                    <button>
+                                    <button id = "iridium_butt">
                                         Iridium
                                         <span class="cancel-btn">×</span>
                                     </button>
