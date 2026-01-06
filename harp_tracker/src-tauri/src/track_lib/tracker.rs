@@ -15,9 +15,9 @@ use super::{aprs::APRS, iridium::Iridium, sondehub::SondeHub, position_time::Pos
 pub struct Tracker {
     active: bool,
     
-    aprs: Option<APRS>,
-    iridium: Option<Iridium>,
-    sondehub: Option<SondeHub>,
+    aprs: Vec<Option<APRS>>,
+    iridium: Vec<Option<Iridium>>,
+    sondehub: Vec<Option<SondeHub>>,
     
     //Arduino and calculations modules have been commented out or removed to be worked on in the future
     // arduino: Option<Arduino>,
@@ -34,26 +34,28 @@ impl Tracker{
     
     /// Create a new Tracker
     pub fn new() -> Self{
-        Self { active:false, aprs: None,  iridium: None, sondehub:None, position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0}, csv_path: None}
+        Self { active:false, aprs: vec![],  iridium: vec![], sondehub: vec![], position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0}, csv_path: None}
     }
 
     /// Create a new APRS Module
     pub fn new_aprs(&mut self, api_key: &str, call_sign: &str){
-        self.aprs = Some(APRS::new(api_key, call_sign));
+        self.aprs.push(Some(APRS::new(api_key, call_sign)));
+        // Also create a corresponding SondeHub
+        self.sondehub.push(Some(SondeHub::new(call_sign)));
         if !self.active{self.csv_path = self.create_folder()}
         self.active = true;
     }
 
     /// Create a new Iridium Module
     pub fn new_iridium(&mut self, base_url: &str, modem: &str){
-        self.iridium = Some(Iridium::new(base_url, modem));
+        self.iridium.push(Some(Iridium::new(base_url, modem)));
         if !self.active{self.csv_path = self.create_folder()}
         self.active = true;
     }
 
     /// Create a new SondeHub Module
     pub fn new_sondehub(&mut self, call_sign: &str){
-        self.sondehub = Some(SondeHub::new(call_sign));
+        self.sondehub.push(Some(SondeHub::new(call_sign)));
         if !self.active{self.csv_path = self.create_folder()}
         self.active = true;
     }
@@ -77,13 +79,13 @@ impl Tracker{
     // ------------------------Tracking Modules Return Functions------------------------
 
 
-    pub fn return_aprs(&mut self) -> Option<APRS>{
+    pub fn return_aprs(&mut self) -> Vec<Option<APRS>>{
         self.aprs.clone()
     }
-    pub fn return_iridium(&mut self) -> Option<Iridium>{
+    pub fn return_iridium(&mut self) -> Vec<Option<Iridium>>{
         self.iridium.clone()
     }
-    pub fn return_sondehub(&mut self) -> Option<SondeHub>{
+    pub fn return_sondehub(&mut self) -> Vec<Option<SondeHub>>{
         self.sondehub.clone()
     }
     // pub fn is_arduino_active(&self) -> bool {
@@ -95,28 +97,46 @@ impl Tracker{
 
     // ------------------------Update Helper Functions------------------------
 
-    fn update_aprs(&mut self) -> Result<(), Box<(dyn std::error::Error + 'static)>>{
-        if self.aprs.is_some(){
-            return self.aprs.as_mut().unwrap().update_position();
+    fn update_aprs(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>>{
+
+        if self.aprs.len() > 0 {
+            let mut e = vec![];
+
+            for aprs in &mut self.aprs{
+                if aprs.is_some(){
+                    e.push(aprs.as_mut().unwrap().update_position());
+                }
+            }
+            return e;
         }
         // Ok(())
-        return Err("Error updating APRS".into());
+        return vec![Err("Error updating APRS".into())]
     }
 
-    fn update_iridium(&mut self) -> Result<(), Box<(dyn std::error::Error + 'static)>>{
-        if self.iridium.is_some(){
-            return self.iridium.as_mut().unwrap().update_position();
+    fn update_iridium(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
+        let mut e = vec![];
+        for iridium in &mut self.iridium{
+            if iridium.is_some(){
+                e.push(iridium.as_mut().unwrap().update_position());
+            }
         }
-        // Ok(())
-        return Err("Error updating Iridium".into());
+        if e.is_empty() {
+            e.push(Err("Error updating Iridium".into()));
+        }
+        e
     }
 
-    fn update_sondehub(&mut self) -> Result<(), Box<(dyn std::error::Error + 'static)>>{
-        if self.sondehub.is_some(){
-            return self.sondehub.as_mut().unwrap().update_position();
+    fn update_sondehub(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
+        let mut e = vec![];
+        for sondehub in &mut self.sondehub{
+            if sondehub.is_some(){
+                e.push(sondehub.as_mut().unwrap().update_position());
+            }
         }
-        // Ok(())
-        return Err("Error updating Sondehub".into());
+        if e.is_empty() {
+            e.push(Err("Error updating Sondehub".into()));
+        }
+        e
     }
 
     // fn update_arduino(&mut self) -> Result<(), Box<(dyn std::error::Error + 'static)>>{
@@ -128,13 +148,13 @@ impl Tracker{
     // }        
 
     /// Internal function to update all modules on the tracker and return the errors as a vector
-    fn update_tracker(&mut self) -> Vec<Result<(), Box<(dyn std::error::Error + 'static)>>>{
+    fn update_tracker(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
 
-        let mut v: Vec<Result<(), Box<(dyn std::error::Error + 'static)>>> = vec![];
+        let mut v: Vec<Result<(), Box<dyn std::error::Error + 'static>>> = vec![];
         
-        v.push(self.update_aprs());
-        v.push(self.update_iridium());
-        v.push(self.update_sondehub());
+        v.extend(self.update_aprs());
+        v.extend(self.update_iridium());
+        v.extend(self.update_sondehub());
         // v.push(self.update_arduino());
 
         v
@@ -191,39 +211,66 @@ impl Tracker{
         }
 
         let mut positions: Vec<PositionTime> = vec![];
+        eprintln!("DEBUG: APRS vector length: {}", self.aprs.len());
+        if self.aprs.len() > 0 {
+            for (idx, aprs) in self.aprs.iter().enumerate(){
+                eprintln!("DEBUG: APRS[{}] is_some: {}", idx, aprs.is_some());
+                if let Some(aprs) = aprs {
+                    let t = aprs.get_last_update();
+                    eprintln!("DEBUG: APRS[{}] last_update: {}", idx, t);
+                    if t != 0 {
+                        let pt = aprs.get_pos_time();
+                        eprintln!("DEBUG: APRS[{}] pos_time: {:?}", idx, pt);
+                        positions.push(pt.clone());
+                        eprintln!("{:?}", Self::write_to_csv(TrackingType::APRS, pt, self.csv_path.clone()));
+                    }
+                }
 
-        if let Some(aprs) = &self.aprs {
-            let t = aprs.get_last_update();
-            if t != 0 {
-                let pt = aprs.get_pos_time();
-                positions.push(pt.clone());
-                eprintln!("{:?}", Self::write_to_csv(TrackingType::APRS, pt, self.csv_path.clone()));
             }
         }
 
-        if let Some(iridium) = &self.iridium {
-            let t = iridium.get_last_update();
-            if t != 0 {
-                let pt = iridium.get_pos_time();
-                positions.push(pt.clone());
-                eprintln!("{:?}", Self::write_to_csv(TrackingType::Iridium, pt, self.csv_path.clone()));
+        eprintln!("DEBUG: SondeHub vector length: {}", self.sondehub.len());
+        if self.sondehub.len() > 0 {
+            for (idx, sondehub) in self.sondehub.iter().enumerate(){
+                eprintln!("DEBUG: SondeHub[{}] is_some: {}", idx, sondehub.is_some());
+                if let Some(sondehub) = sondehub {
+                    let t = sondehub.get_last_update();
+                    eprintln!("DEBUG: SondeHub[{}] last_update: {}", idx, t);
+                    if t != 0 {
+                        let pt = sondehub.get_pos_time();
+                        eprintln!("DEBUG: SondeHub[{}] pos_time: {:?}", idx, pt);
+                        positions.push(pt.clone());
+                        eprintln!("{:?}", Self::write_to_csv(TrackingType::SondeHub, pt, self.csv_path.clone()));
+                    }
+                }
             }
         }
 
-        if let Some(sondehub) = &self.sondehub {
-            let t = sondehub.get_last_update();
-            if t != 0 {
-                let pt = sondehub.get_pos_time();
-                positions.push(pt.clone());
-                eprintln!("{:?}", Self::write_to_csv(TrackingType::SondeHub, pt, self.csv_path.clone()));
+        if self.iridium.len() > 0 {
+            for (idx, iridium) in self.iridium.iter().enumerate(){
+                eprintln!("DEBUG: Iridium[{}] is_some: {}", idx, iridium.is_some());
+                if let Some(iridium) = iridium {
+                    let t = iridium.get_last_update();
+                    eprintln!("DEBUG: Iridium[{}] last_update: {}", idx, t);
+                    if t != 0 {
+                        let pt = iridium.get_pos_time();
+                        eprintln!("DEBUG: Iridium[{}] pos_time: {:?}", idx, pt);
+                        positions.push(pt.clone());
+                        eprintln!("{:?}", Self::write_to_csv(TrackingType::Iridium, pt, self.csv_path.clone()));
+                    }
+                }
             }
         }
 
+        eprintln!("Collected {} positions for filtering", positions.len());
         let most_recent_position: Option<PositionTime> = PositionTime::return_valid_pos_time(positions, EstimationType::Recent);
 
         //Update struct and log to CSV if we have a new update
         if let Some(new_pos) = most_recent_position.clone() {
+            eprintln!("Updating position_time to: {:?}", new_pos);
             self.position_time = new_pos;
+        } else {
+            eprintln!("No valid position found to update");
         }
 
         err
@@ -231,25 +278,38 @@ impl Tracker{
 
     pub fn get_position_with_filtering(&self, method: EstimationType) -> (f64, f64, f64) {
         let mut positions: Vec<PositionTime> = vec![];
+        if self.aprs.len() > 0 {
+            for aprs in &self.aprs{
+                if let Some(aprs) = aprs {
+                    let t = aprs.get_last_update();
+                    if t != 0 {
+                        positions.push(aprs.get_pos_time());
+                    }
+                }
 
-        if let Some(aprs) = &self.aprs {
-            let t = aprs.get_last_update();
-            if t != 0 {
-                positions.push(aprs.get_pos_time());
             }
         }
 
-        if let Some(iridium) = &self.iridium {
-            let t = iridium.get_last_update();
-            if t != 0 {
-                positions.push(iridium.get_pos_time());
+
+        if self.iridium.len() > 0 {
+            for iridium in &self.iridium{
+                if let Some(iridium) = iridium {
+                    let t = iridium.get_last_update();
+                    if t != 0 {
+                        positions.push(iridium.get_pos_time());
+                    }
+                }
             }
         }
 
-        if let Some(sondehub) = &self.sondehub {
-            let t = sondehub.get_last_update();
-            if t != 0 {
-                positions.push(sondehub.get_pos_time());
+        if self.sondehub.len() > 0 {
+            for sondehub in &self.sondehub{
+                if let Some(sondehub) = sondehub {
+                    let t = sondehub.get_last_update();
+                    if t != 0 {
+                        positions.push(sondehub.get_pos_time());
+                    }
+                }
             }
         }
 

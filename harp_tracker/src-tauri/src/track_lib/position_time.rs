@@ -11,7 +11,7 @@ alt -> Altitude in meters
 
 last_update -> Unix timestamp of the last update
 */
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PositionTime{
     
     pub lat: f64,
@@ -160,12 +160,18 @@ impl PositionTime {
     }
 
     fn check_sort(pos_time: &Vec<PositionTime>) -> bool{
-        for (i, p) in pos_time.iter().enumerate(){
-            if p.last_update > pos_time[i].last_update{
-                return false;
+        // Returns true if array needs sorting (is NOT sorted)
+        // Returns false if array is already sorted
+        if pos_time.len() <= 1 {
+            return false; // Single or empty array is already sorted
+        }
+        
+        for i in 0..pos_time.len() - 1 {
+            if pos_time[i].last_update > pos_time[i + 1].last_update {
+                return true; // Found an inversion, array needs sorting
             }
         }
-        return true;
+        return false; // Array is already sorted
     }
 
 }

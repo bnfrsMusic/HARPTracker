@@ -19,6 +19,10 @@ let previousAprsValue = "";
 let previousLat = null;
 let previousLong = null;
 
+// Track active instances
+let activeAprsCallsigns = [];
+let activeIridiumModems = [];
+
 // Interval IDs for clearing if needed
 let utcIntervalId;
 let trackerIntervalId;
@@ -134,6 +138,9 @@ async function handleRadioInputBlur(event) {
   } else if (selectedRadio === "aprs_field") {
     await handleAprsUpdate(newValue);
   }
+  
+  // Clear the input field after adding
+  event.target.value = "";
 }
   
   // Initialize the map iframe
@@ -166,13 +173,14 @@ async function handleRadioInputBlur(event) {
   await updateTracker();
   await updateUtc();
   await updateActiveStatus();
+  await updateConnectedClients();
   
   // --------------------Timers--------------------
   // UTC time and Last Update every 0.1 seconds
   utcIntervalId = setInterval(updateUtc, 100);
   
-  // tracker data every 5 seconds
-  trackerIntervalId = setInterval(updateTracker, 6000);
+  // tracker data every 10 seconds (CHANGE THIS VALUE TO ADJUST UPDATE RATE)
+  trackerIntervalId = setInterval(updateTracker, 10000);
   
   // status indicators every 2 seconds
   statusIntervalId = setInterval(updateActiveStatus, 1000);
@@ -269,10 +277,72 @@ async function updateActiveStatus() {
       console_text.textContent = "Error checking Iridium status:" + error;
       // console.error("Error checking Iridium status:", error);
     }
+    
+    // Update the connection display with fresh last update time
+    await updateConnectedClients();
   } catch (error) {
     console_text.textContent = "Error updating active status:" + error;
 
     // console.error("Error updating active status:", error);
+  }
+}
+
+// Update the display of connected clients
+async function updateConnectedClients() {
+  try {
+    const signalFlexbox = document.querySelector(".signal_flexbox");
+    if (!signalFlexbox) return;
+    
+    //Clear the stuff
+    const existingConnections = signalFlexbox.querySelectorAll('.connection-item');
+    existingConnections.forEach(item => item.remove());
+    
+    //validity data
+    const aprsValidity = await invoke("get_aprs_validity");
+    const iridiumValidity = await invoke("get_iridium_validity");
+    
+    //last update time for formatting
+    // const lastUpdateSeconds = await invoke("get_last_update");
+    
+    // Update APRS button if there are active APRS connections
+    if (activeAprsCallsigns.length > 0) {
+      const callsign = activeAprsCallsigns[0]; //first callsign
+      aprs_butt.textContent = `APRS\n${callsign}`;
+      const isValid = aprsValidity[0]; // Check valid data
+      aprs_butt.style.backgroundColor = isValid ? "#90EE90" : "white"; // Green if valid, white if not
+      aprs_butt.style.display = "inline";
+      
+      // Add additional APRS connections
+      for (let i = 1; i < activeAprsCallsigns.length; i++) {
+        const item = document.createElement("button");
+        item.className = "connection-item";
+        item.textContent = `APRS\n${activeAprsCallsigns[i]}`;
+        const isValid = aprsValidity[i]; // Check if this APRS has valid data
+        item.style.backgroundColor = isValid ? "#90EE90" : "white"; // Green if valid, white if not
+        signalFlexbox.appendChild(item);
+      }
+    }
+    
+    // Update Iridium button if there are active Iridium connections
+    if (activeIridiumModems.length > 0) {
+      const modem = activeIridiumModems[0]; 
+      iridium_butt.textContent = `Iridium | ${modem}`;
+      const isValid = iridiumValidity[0]; 
+      iridium_butt.style.backgroundColor = isValid ? "#90EE90" : "white"; // Green if valid, white if not
+      iridium_butt.style.display = "inline";
+      
+      // Add additional Iridium connections
+      for (let i = 1; i < activeIridiumModems.length; i++) {
+        const item = document.createElement("button");
+        item.className = "connection-item";
+        item.textContent = `Iridium | ${activeIridiumModems[i]}`;
+        const isValid = iridiumValidity[i]; // Check valid data
+        item.style.backgroundColor = isValid ? "#90EE90" : "white"; // Green if valid, white if not
+        signalFlexbox.appendChild(item);
+      }
+    }
+  } catch (error) {
+    console.error("Error updating connected clients:", error);
   }
 }
 
@@ -313,14 +383,13 @@ async function updateCityAndState(latitude, longitude) {
                     "";
     
     // Update UI
-    if (city) city.textContent = cityName + ",";
-    if (state) state.textContent = stateName;
+    if (citystate) citystate.textContent = cityName + ", " + stateName;
+    // if (state) state.textContent = stateName;
 
     console.log(`Updated location: ${cityName}, ${stateName}`);
   } catch (error) {
     console.error("Error getting city/state:", error);
-    if (city) city.textContent = "Location";
-    if (state) state.textContent = "Unknown";
+    if (citystate) citystate.textContent = "Location, Unknown";
   }
 }
 
@@ -344,8 +413,17 @@ async function handleIridiumUpdate(newValue) {
     if (newValue !== "") {
       await invoke("set_irr_modem", { id: newValue });
       await invoke("set_iridium");
+      
+      // Add to active instances list if not already present
+      if (!activeIridiumModems.includes(newValue)) {
+        activeIridiumModems.push(newValue);
+      }
+      
       if (console_text) console_text.textContent = "Iridium modem updated: " + newValue;
       else console.log("Iridium modem updated:", newValue);
+      
+      // Update the display of connected clients
+      await updateConnectedClients();
     }
   } catch (error) {
     if (console_text) console_text.textContent = "Error updating Iridium settings: " + error;
@@ -370,8 +448,17 @@ async function handleAprsUpdate(newValue) {
     if (newValue !== "") {
       await invoke("set_aprs_callsign", { id: newValue });
       await invoke("set_aprs");
+      
+      // Add to active instances list if not already present
+      if (!activeAprsCallsigns.includes(newValue)) {
+        activeAprsCallsigns.push(newValue);
+      }
+      
       if (console_text) console_text.textContent = "APRS callsign updated: " + newValue;
       else console.log("APRS callsign updated:", newValue);
+      
+      // Update the display of connected clients
+      await updateConnectedClients();
     }
   } catch (error) {
     if (console_text) console_text.textContent = "Error updating APRS settings: " + error;
@@ -394,12 +481,10 @@ async function getPosition() {
     if (long && !Number.isNaN(numLong)) long.textContent = numLong;
     if (alt && !Number.isNaN(numAlt)) alt.textContent = numAlt + "m";
 
-    // Update the map with new pos
+    // Update the map with new pos (only once with numeric values)
     if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) {
       updateMap(numLat, numLong, numAlt);
     }
-    // Update the map with the new position
-    updateMap(currentLat, currentLong, altitude);
     
     // Check if coordinates have changed significantly before updating city
     const hasLocationChanged = 

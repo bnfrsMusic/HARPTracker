@@ -8,11 +8,22 @@ use track_lib::tracker::Tracker;
 use std::{sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
 use dotenvy::dotenv;
 use std::env;
+use std::fs;
+use serde::{Serialize, Deserialize};
 
 pub struct Coords {
     lat: f64,
     long: f64,
     alt: f64 
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TrackingPoint {
+    lat: f64,
+    lon: f64,
+    alt: f64,
+    time: u64,
+    track_type: String
 }
 
 impl Coords {
@@ -99,7 +110,6 @@ fn set_aprs() -> bool {
     let aprs_call = APRS_CALLSIGN.lock().unwrap();
     if !aprs_call.is_empty() {
         TRACKER.lock().unwrap().new_aprs(APRSFI_API_KEY.as_str(), aprs_call.as_str());
-        TRACKER.lock().unwrap().new_sondehub(aprs_call.as_str());
 
         true
     } else {
@@ -153,7 +163,7 @@ fn update() -> String {
         "Average" => track_lib::position_time::EstimationType::Average,
         "Median" => track_lib::position_time::EstimationType::Median,
         "Recent" => track_lib::position_time::EstimationType::Recent,
-        _ => track_lib::position_time::EstimationType::Average,
+        _ => track_lib::position_time::EstimationType::Recent,
     };
     
     let pos = TRACKER.try_lock().unwrap().get_position();
@@ -219,16 +229,21 @@ fn get_last_update() -> u64 {
 fn is_aprs_active() -> bool{
     let a = TRACKER.try_lock().unwrap().return_aprs();
     let s = TRACKER.try_lock().unwrap().return_sondehub();
-    if a.is_some(){
-        let a = a.unwrap();
-        if a.get_last_update() != 0{
-            return true
+
+    for aprs in a{
+        if aprs.is_some(){
+            let aprs_unwrapped = aprs.unwrap();
+            if aprs_unwrapped.get_last_update() != 0{
+                return true
+            }
         }
     }
-    if s.is_some(){
-        let s = s.unwrap();
-        if s.get_last_update() != 0{
-            return true
+    for sondehub in s {
+        if sondehub.is_some(){
+            let s = sondehub.unwrap();
+            if s.get_last_update() != 0{
+                return true
+            }
         }
     }
     return false;
@@ -238,10 +253,12 @@ fn is_aprs_active() -> bool{
 #[tauri::command]
 fn is_iridium_active() -> bool{
     let a = TRACKER.try_lock().unwrap().return_iridium();
-    if a.is_some(){
-        let a = a.unwrap();
-        if a.get_last_update() != 0{
-            return true
+    for iridium in a {
+        if iridium.is_some(){
+            let a = iridium.unwrap();
+            if a.get_last_update() != 0{
+                return true
+            }
         }
     }
     return false;
@@ -259,6 +276,114 @@ fn set_filtering_method(method: String) {
     *FILTERING_METHOD.lock().unwrap() = method;
 }
 
+/// count of active APRS instances
+#[tauri::command]
+fn get_aprs_count() -> usize {
+    TRACKER.try_lock().unwrap().return_aprs().iter().filter(|a| a.is_some()).count()
+}
+
+/// count of active Iridium instances
+#[tauri::command]
+fn get_iridium_count() -> usize {
+    TRACKER.try_lock().unwrap().return_iridium().iter().filter(|i| i.is_some()).count()
+}
+
+// count of active SondeHub instances
+#[tauri::command]
+fn get_sondehub_count() -> usize {
+    TRACKER.try_lock().unwrap().return_sondehub().iter().filter(|s| s.is_some()).count()
+}
+
+/// Check if APRS instances have legit position data
+#[tauri::command]
+fn get_aprs_validity() -> Vec<bool> {
+    TRACKER.try_lock().unwrap().return_aprs().iter().map(|a| {
+        if let Some(aprs) = a {
+            aprs.get_last_update() != 0
+        } else {
+            false
+        }
+    }).collect()
+}
+
+/// Check if Iridium instances have legit position data
+#[tauri::command]
+fn get_iridium_validity() -> Vec<bool> {
+    TRACKER.try_lock().unwrap().return_iridium().iter().map(|i| {
+        if let Some(iridium) = i {
+            iridium.get_last_update() != 0
+        } else {
+            false
+        }
+    }).collect()
+}
+
+///Read most recent CSV file from the Launch Data folder and return tracking points
+#[tauri::command]
+fn get_tracking_history() -> Vec<TrackingPoint> {
+    let current_dir = std::env::current_dir().expect("Could not determine current directory");
+    let folder_path = current_dir.join("Launch Data");
+    
+    // Check if folder exists
+    if !folder_path.exists() {
+        return vec![];
+    }
+    
+    // Find  most recent CSV file
+    let mut latest_file = None;
+    let mut latest_time = 0u64;
+    
+    if let Ok(entries) = fs::read_dir(&folder_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "csv") {
+                // Extract timestamp from filename (e.g., "data1767321506.csv")
+                if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                    if let Some(time_str) = filename.strip_prefix("data").and_then(|s| s.strip_suffix(".csv")) {
+                        if let Ok(time) = time_str.parse::<u64>() {
+                            if time > latest_time {
+                                latest_time = time;
+                                latest_file = Some(path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    let mut points = vec![];
+    
+    if let Some(file_path) = latest_file {
+        if let Ok(content) = fs::read_to_string(&file_path) {
+            for line in content.lines().skip(1) { // Skip header
+                let parts: Vec<&str> = line.split(',').collect();
+                if parts.len() >= 5 {
+                    if let (Ok(lat), Ok(lon), Ok(alt), Ok(time)) = (
+                        parts[1].parse::<f64>(),
+                        parts[2].parse::<f64>(),
+                        parts[3].parse::<f64>(),
+                        parts[4].parse::<u64>()
+                    ) {
+                        let track_type = parts[0].to_string();
+                        points.push(TrackingPoint {
+                            lat,
+                            lon,
+                            alt,
+                            time,
+                            track_type
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    //Sort by time
+    points.sort_by_key(|p| p.time);
+    points
+}
+
 // Application run
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -273,7 +398,10 @@ pub fn run() {
             update, 
             get_position, get_lat, get_long, get_alt,
             get_last_update, is_aprs_active, is_iridium_active,
-            get_filtering_method, set_filtering_method
+            get_filtering_method, set_filtering_method,
+            get_aprs_count, get_iridium_count, get_sondehub_count,
+            get_aprs_validity, get_iridium_validity,
+            get_tracking_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

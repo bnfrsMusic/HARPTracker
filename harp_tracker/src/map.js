@@ -10,6 +10,8 @@ let lastLng = null;
 let aircraftLayer = null;
 let aircraftMarkers = new Map();
 let aircraftFetchInterval = null;
+let trackingPolyline = null;
+let trackingUpdateInterval = null;
 
 // initialize the map
 function initMap() {
@@ -93,6 +95,12 @@ function initMap() {
 
   // Start fetching aircraft periodically
   startAircraftUpdates();
+  
+  // Load and display tracking history
+  loadTrackingHistory();
+  
+  // Start periodic updates for tracking history
+  startTrackingHistoryUpdates();
 }
 
 // Handle messages from the parent window
@@ -101,6 +109,14 @@ function handleMessage(event) {
   if (data && data.type === 'UPDATE_POSITION') {
     updateMapPosition(data.lat, data.lng, data.alt);
   }
+}
+
+// return gmaps link 
+function getGmapsLink(lat, lon, zoom = 15) {
+    const coordinates = `${lat},${lon}`;
+    
+    // This format ensures a pin is dropped at the exact location
+    return `https://www.google.com/maps/search/?api=1&query=${coordinates}`;
 }
 
 // Update map position
@@ -112,13 +128,24 @@ function updateMapPosition(lat, lng, alt) {
     console.error('Invalid coordinates:', lat, lng);
     return;
   }
-  
+    
 
   if (lat !== lastLat || lng !== lastLng) {
+  
+    const gMapsUrl = getGmapsLink(lat, lng);
     marker.setLatLng([lat, lng]);
     
     // Update popup content with coordinates and altitude
-    marker.bindPopup(`<b>Balloon Position</b><br>Lat: ${lat}<br>Lng: ${lng}<br>Alt: ${alt}m`).openPopup();
+    marker.bindPopup(`
+          <b>Balloon Position</b><br>
+          Lat: ${lat.toFixed(4)}<br>
+          Lng: ${lng.toFixed(4)}<br>
+          Alt: ${alt}m<br>
+          <hr>
+          <a href="${gMapsUrl}" target="_blank" style="color: #4285F4; font-weight: bold; text-decoration: none;">
+            📍 Open in GMaps
+          </a>
+        `).openPopup();
     
     // Center the map on the marker if this is the first load or if coordinates have changed significantly
     if (firstLoad || Math.abs(lat - lastLat) > 0.01 || Math.abs(lng - lastLng) > 0.01) {
@@ -148,6 +175,44 @@ function resetToBalloon() {
 }
 
 window.resetToBalloon = resetToBalloon;
+
+// ---------------------- Tracking History Layer ----------------------
+
+async function loadTrackingHistory() {
+  try {
+
+    const trackingPoints = await window.__TAURI__.core.invoke('get_tracking_history');
+    
+    if (trackingPoints && trackingPoints.length > 0) {
+      //array of [lat, lon] 
+      const latlngs = trackingPoints.map(point => [point.lat, point.lon]);
+      
+      // Remove existing polyline
+      if (trackingPolyline) {
+        map.removeLayer(trackingPolyline);
+      }
+      
+      // Create a red polyline connecting all points in chronological order
+      trackingPolyline = L.polyline(latlngs, {
+        color: '#FF0000',
+        weight: 3,
+        opacity: 0.7,
+        lineJoin: 'round',
+        lineCap: 'round',
+        className: 'tracking-path'
+      }).addTo(map);
+      
+      console.log(`Tracking line created with ${trackingPoints.length} points`);
+    }
+  } catch (err) {
+    console.error('Error loading tracking history:', err);
+  }
+}
+
+function startTrackingHistoryUpdates() {
+  if (trackingUpdateInterval) clearInterval(trackingUpdateInterval);
+  trackingUpdateInterval = setInterval(loadTrackingHistory, 10000); // Update every 10 seconds
+}
 
 // ---------------------- Aircraft (ADS-B/OpenSky) Layer ----------------------
 

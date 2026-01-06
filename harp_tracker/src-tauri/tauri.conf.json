@@ -9,9 +9,9 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "harp_tracker",
-        "width": 1080,
-        "height": 720
+        "title": "HARP Tracker",
+        "width": 1920,
+        "height": 1080
       }
     ],
     "security": {
