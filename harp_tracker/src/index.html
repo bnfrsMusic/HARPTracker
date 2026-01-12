@@ -5,79 +5,132 @@
         <link rel="stylesheet" href="styles.css" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>HARP Tracker</title>
-        <script type="module" src="/main.js" defer></script>
     </head>
 
     <body>
-        <div class="parts-layout">
-            <div class="top">
+        <div class="app-container">
+            <!-- Header with compass on the left -->
+            <header class="app-header">
+                <div class="header-left">
+                    <div class="compass-container" id="compass-top-left"></div>
+                </div>
                 <h1>HARP TRACKER</h1>
+            </header>
+
+            <!-- Right sidebar with tabs -->
+            <nav class="panels">
+                <div class="side-tabs" aria-hidden="false">
+                    <button class="side-tab" data-panel="connections"><span>Connections</span></button>
+                    <button class="side-tab" data-panel="controls"><span>Controls</span></button>
+                    <button class="side-tab" data-panel="predictions"><span>Predictions</span></button>
+                    <button class="side-tab" data-panel="settings"><span>Settings</span></button>
+                </div>
+            </nav>
+
+            <!-- Panel contents -->
+            <div class="panel-contents" id="panel-contents">
+                <section id="connections" class="panel">
+                    <h2>Connections</h2>
+                    <div class="connections-list" id="connections-list"></div>
+                    <div style="margin-top:8px; display:flex; justify-content:flex-end;"><button id="add-connection">Add Connection</button></div>
+
+                    <h3 style="color: var(--danger); margin-top:12px;">Connected Clients</h3>
+                    <div class="connected_clients placeholder" style="color: var(--danger)">(Not implemented)</div>
+                </section>
+
+                <section id="controls" class="panel">
+                    <h2>Controls</h2>
+                    <div class="joystick-area">
+                        <div class="joystick placeholder">Joystick Control (Not implemented)</div>
+                        <div class="tracking-toggle">Tracking: <button>Toggle</button></div>
+                    </div>
+
+                    <div class="venting placeholder" style="color: #c0392b">Venting Commands (Not implemented)</div>
+                </section>
+
+                <section id="predictions" class="panel">
+                    <h2>Predictions</h2>
+                    <label><span>Algorithm</span><select><option>SondeHub (Tawhiri)</option></select></label>
+                    <label><span>Weather Model</span><select><option>GFS</option></select></label>
+                    <div class="payload-params">
+                        <label><span>Payload mass</span><input type="text"></label>
+                        <label><span>Balloon mass</span><input type="text"></label>
+                        <label><span>Parachute drag coeff</span><input type="text"></label>
+                    </div>
+                    <div class="run-controls" style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+                        <button>Run Predictions</button>
+                        <button>AUTO</button>
+                    </div>
+                </section>
+
+                <section id="settings" class="panel">
+                    <h2>Settings</h2>
+                    <label><span>Theme</span><select><option>Light</option><option>Dark</option></select></label>
+                    <label><span>Color Scheme</span><select><option>Simple</option></select></label>
+                    <label><span>Units</span><select><option>Metric</option><option>Imperial</option></select></label>
+
+                    <div class="ground-station" style="margin-top:0.8rem;">
+                        <h3>Ground Station</h3>
+                        <label><span>Lat</span><input type="text"></label>
+                        <label><span>Lon</span><input type="text"></label>
+                        <label><span>Alt</span><input type="text"></label>
+                    </div>
+
+                    <div class="serial-ports">
+                        <h3>Serial Comm Ports</h3>
+                        <label><span>RFD</span><input type="text"></label>
+                        <label><span>Arduino</span><input type="text"></label>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Main content area -->
+            <main class="main-content">
+                <!-- Left: Map -->
+                <section class="map-section">
+                    <div class="map-frame">
+                        <iframe class="screen" src="map.html" title="Map"></iframe>
+                        <div class="map-footer">
+                            <p id="utc-msg">UTC</p>
+                            <p id="last-update">Last update</p>
+                            <p id="citystate">Location</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Right: Altitude Graph and Predictions -->
+                <section class="right-panels">
+                    <div class="altitude-box">
+                        <h2>Altitude Graph</h2>
+                        <iframe id="altitude-graph" src="alt-graph.html"></iframe>
+                    </div>
+
+                    <div class="predictions-box">
+                        <h2>Prediction Controls</h3>
+                        <label>Prediction Algorithm
+                            <select id="prediction-algo">
+                                <option>SondeHub (Tawhiri)</option>
+                                <option>Default</option>
+                            </select>
+                        </label>
+                        <label>Filtering
+                            <select id="filtering-method">
+                                <option>Recent</option>
+                                <option selected>Average</option>
+                                <option>Median</option>
+                            </select>
+                        </label>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Console text at bottom -->
+            <div class="console-area">
                 <p id="console-text">console text</p>
             </div>
-            <div class="center">
-                <div class="frame-container">
-                    <iframe class="screen"></iframe>
-                    <div class="frame-info">
-                        <p id="utc-msg">utc</p>
-                        <p id="last-update">last update</p>
-                        <p id = "citystate">Location, Unknown</p>
-
-                    </div>
-                </div>
-            </div>
-            <div class="bottom">
-            </div>
-            <div class="left">
-                <div class="connectivity_setup">
-                    <h2>Connectivity</h2>
-                    <div class="client_fields_setup">
-                            <div class="dropdown">
-                                <h3>Add Radio Connection</h3>
-                                <select id="radio-method" class="client">
-                                    <option value="iridium_field">Iridium</option>
-                                    <option value="aprs_field">APRS</option>
-                                </select>
-                            <input type="text">
-                            </div>
-
-                        <div class="dropdown">
-                            <h3>Prediction Adjustments</h3>
-                            <button>Not Implemented Yet</button>
-                            <select id="filtering-method" class="client">
-                                <option value="Recent">Recent</option>
-                                <option value="Average">Average</option>
-                                <option value="Median">Median</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="right">
-                <div class="connected_clients_setup">
-                    <h2>Connected Clients</h2>
-                    <div class = "client_fields_setup">
-                        <div class = "dropdown">
-                            <h3>Active Radio</h3>
-                            <div class = "connected_radio">
-                                <div class = "signal_flexbox">
-                                    <button id = "aprs_butt">
-                                        APRS
-                                        <span class="cancel-btn">×</span>
-                                    </button>
-                                    <button id = "iridium_butt">
-                                        Iridium
-                                        <span class="cancel-btn">×</span>
-                                    </button>
-                                </div>
-                            </div>
-                            <h3>Active Clients</h3>
-                            <div class = "connected_clients">
-
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
+
+        <script type="module" src="compass.js" defer></script>
+        <script type="module" src="main.js" defer></script>
     </body>
 </html>

@@ -1,3 +1,8 @@
+import { setCompassAngle, createCompass } from './compass.js';
+
+
+// allow quick dev call
+window.updateInfo = updateInfo;
 const { invoke } = window.__TAURI__.core;
 
 // DOM elements
@@ -30,12 +35,100 @@ let statusIntervalId;
 
 // geocoding API calls rate limiting
 let lastGeocodeTime = 0;
-const GEOCODE_RATE_LIMIT = 10000; // 10 seconds between calls
+const GEOCODE_RATE_LIMIT = 10000; 
 
 
 
 // Initialize app
 async function init() {
+  // Initialize side-tabs, add-connection and compass (UI features)
+    try {
+      const sideTabs = document.querySelectorAll('.side-tab, .sidebar-tab');
+      const panelContents = document.getElementById('panel-contents');
+      let activeTab = null;
+
+      sideTabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panelId = btn.dataset.panel;
+          const panel = document.getElementById(panelId);
+
+          // If clicking the currently active tab -> toggle close
+          if (activeTab === btn) {
+            // close
+            btn.classList.remove('active');
+            activeTab = null;
+            if (panelContents) {
+              panelContents.classList.remove('open');
+              panelContents.setAttribute('aria-hidden', 'true');
+            }
+            if (panel) panel.classList.remove('active');
+            document.body.classList.remove('panel-open');
+            return;
+          }
+
+          // otherwise open the clicked tab
+          sideTabs.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          activeTab = btn;
+
+          document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+          if (panel) panel.classList.add('active');
+          if (panelContents) {
+            panelContents.classList.add('open');
+            panelContents.setAttribute('aria-hidden', 'false');
+          }
+          document.body.classList.add('panel-open');
+        });
+      });
+
+      // close panel when clicking outside (but allow toggling via tabs)
+      document.addEventListener('click', (e) => {
+        const target = e.target;
+        if (!target.closest('.panel-contents') && !target.closest('.side-tab') && !target.closest('.sidebar-tab')) {
+          if (panelContents) {
+            panelContents.classList.remove('open');
+            panelContents.setAttribute('aria-hidden', 'true');
+          }
+          sideTabs.forEach(b => b.classList.remove('active'));
+          activeTab = null;
+          document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+          document.body.classList.remove('panel-open');
+        }
+      });
+
+      const addBtn = document.getElementById('add-connection');
+      const list = document.getElementById('connections-list');
+      if (addBtn && list) {
+        addBtn.addEventListener('click', () => addConnection(list));
+        // create a default connection
+        addConnection(list);
+      }
+
+      // Compass init at top-left
+      createCompass(document.getElementById('compass-top-left'));
+      window.setCompassAngle = setCompassAngle;
+      // Try to pull heading from backend if available and update periodically
+      try {
+        async function pollHeading() {
+          try {
+            const heading = await invoke('get_heading');
+            if (typeof heading === 'number' || !Number.isNaN(Number(heading))) {
+              setCompassAngle(Number(heading));
+            }
+          } catch (err) {
+            // backend may not expose heading; ignore errors silently
+          }
+        }
+        // initial attempt
+        pollHeading();
+        // poll every second
+        setInterval(pollHeading, 1000);
+      } catch (e) {
+        // not fatal
+      }
+    } catch (err) {
+      console.warn('UI init warning:', err);
+    }
   // Get DOM elements
   utcMsg = document.querySelector("#utc-msg");
   dateMsg = document.querySelector("#date-msg");
@@ -234,7 +327,7 @@ async function updateUtc() {
 
   }
 }
-// Update tracker data and position - runs every 5 seconds
+// Update tracker data and position 
 async function updateTracker() {
   try {
     // Update tracker data
@@ -253,6 +346,8 @@ async function updateTracker() {
     console_text.textContent = "Error in tracker update cycle:" + error;
     // console.error("Error in tracker update cycle:", error);
   }
+
+
 }
 
 // Update status indicators for active services
@@ -260,18 +355,16 @@ async function updateActiveStatus() {
   try {
     // Check if active and show button on the Connected Clients
     const isAprsActive = await invoke("is_aprs_active");
-    if (isAprsActive) {
-      aprs_butt.style.display = "inline";
-    } else {
-      aprs_butt.style.display = "none"; 
+    if (aprs_butt) {
+      if (isAprsActive) aprs_butt.style.display = "inline";
+      else aprs_butt.style.display = "none";
     }
     
     try {
       const isIridiumActive = await invoke("is_iridium_active");
-      if (isIridiumActive) {
-       iridium_butt.style.display = "inline";
-      } else {
-        iridium_butt.style.display = "none"; 
+      if (iridium_butt) {
+        if (isIridiumActive) iridium_butt.style.display = "inline";
+        else iridium_butt.style.display = "none";
       }
     } catch (error) {
       console_text.textContent = "Error checking Iridium status:" + error;
@@ -280,6 +373,8 @@ async function updateActiveStatus() {
     
     // Update the connection display with fresh last update time
     await updateConnectedClients();
+    // update connection indicator lights
+    try { await updateConnectionIndicators(); } catch(e) { /* ignore */ }
   } catch (error) {
     console_text.textContent = "Error updating active status:" + error;
 
@@ -305,7 +400,7 @@ async function updateConnectedClients() {
     // const lastUpdateSeconds = await invoke("get_last_update");
     
     // Update APRS button if there are active APRS connections
-    if (activeAprsCallsigns.length > 0) {
+    if (activeAprsCallsigns.length > 0 && aprs_butt) {
       const callsign = activeAprsCallsigns[0]; //first callsign
       aprs_butt.textContent = `APRS\n${callsign}`;
       const isValid = aprsValidity[0]; // Check valid data
@@ -324,7 +419,7 @@ async function updateConnectedClients() {
     }
     
     // Update Iridium button if there are active Iridium connections
-    if (activeIridiumModems.length > 0) {
+    if (activeIridiumModems.length > 0 && iridium_butt) {
       const modem = activeIridiumModems[0]; 
       iridium_butt.textContent = `Iridium | ${modem}`;
       const isValid = iridiumValidity[0]; 
@@ -363,11 +458,16 @@ async function updateCityAndState(latitude, longitude) {
         'User-Agent': 'HARP-Tracker-App/1.0'
       }
     });
-    
+
     if (!response.ok) {
+      if (response.status === 429) {
+        // rate limited
+        if (citystate) citystate.textContent = "Location, Rate limited";
+        return;
+      }
       throw new Error(`Geocoding API error: ${response.status}`);
     }
-    
+
     const data = await response.json();
     
     // Extract city and state information
@@ -481,30 +581,42 @@ async function getPosition() {
     if (long && !Number.isNaN(numLong)) long.textContent = numLong;
     if (alt && !Number.isNaN(numAlt)) alt.textContent = numAlt + "m";
 
-    // Update the map with new pos (only once with numeric values)
-    if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) {
+    // Update map
+    if (!Number.isNaN(numLat) && !Number.isNaN(numLong) && !Number.isNaN(numAlt) && numAlt != 0.0)  {
       updateMap(numLat, numLong, numAlt);
-    }
-    
-    // Check if coordinates have changed significantly before updating city
-    const hasLocationChanged = 
-      previousLat === null || 
-      previousLong === null ||
-      (typeof numLat === 'number' && typeof previousLat === 'number' && Math.abs(numLat - previousLat) > 0.01) ||
-      (typeof numLong === 'number' && typeof previousLong === 'number' && Math.abs(numLong - previousLong) > 0.01);
-    
-    // Update city and state if location has changed
-    if (hasLocationChanged) {
-      if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) updateCityAndState(numLat, numLong);
-      previousLat = Number.isFinite(numLat) ? numLat : previousLat;
-      previousLong = Number.isFinite(numLong) ? numLong : previousLong;
-    }
 
-    //Update altitude bar
-    if (!Number.isNaN(numAlt)) {
-      const altitudeFt = Math.round(numAlt * 3.28084); 
-      if (typeof updateAltitudeBar === 'function') updateAltitudeBar(altitudeFt);
+      // Check if coordinates have changed significantly before updating city
+      const hasLocationChanged = 
+        previousLat === null || 
+        previousLong === null ||
+        (typeof numLat === 'number' && typeof previousLat === 'number' && Math.abs(numLat - previousLat) > 0.01) ||
+        (typeof numLong === 'number' && typeof previousLong === 'number' && Math.abs(numLong - previousLong) > 0.01);
+      
+      // Update elements if location has changed
+      if (hasLocationChanged) {
+        if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) {
+          //update city and state
+          updateCityAndState(numLat, numLong);
+
+          // make UTC timestamp 
+          const now = new Date();
+          const utcTimeStr = now.getUTCHours().toString().padStart(2, '0') + ":" + 
+                            now.getUTCMinutes().toString().padStart(2, '0') + ":" + 
+                            now.getUTCSeconds().toString().padStart(2, '0');
+          //update compass
+          try { await updateCompass(numLat, numLong); } catch(e){}
+          
+          // update alt graph with the utc timestamp
+          try { updateAltitudeGraph(utcTimeStr, numAlt); } catch(e){}
+        }
+        previousLat = Number.isFinite(numLat) ? numLat : previousLat;
+        previousLong = Number.isFinite(numLong) ? numLong : previousLong;
+      }
+
     }
+    
+    
+
 
 
   } catch (error) {
@@ -513,6 +625,207 @@ async function getPosition() {
   }
 
 }
+
+//function that adds a connection to the tracker
+function addConnection(container) {
+    const entry = document.createElement('div');
+    entry.className = 'connection-entry';
+
+    const indicator = document.createElement('div');
+    indicator.className = 'conn-indicator';
+
+    const type = document.createElement('select');
+    ['None','APRS','Iridium'].forEach(n => {
+      const o = document.createElement('option'); o.value = n; o.textContent = n; type.appendChild(o);
+    });
+
+    const ident = document.createElement('input');
+    ident.type = 'text';
+    ident.placeholder = 'Identifier (callsign / IMEI)';
+
+    const remove = document.createElement('button');
+    remove.className = 'remove';
+    remove.innerText = '✕';
+
+    const activate = document.createElement('button');
+    activate.className = 'activate';
+    activate.innerText = 'Activate';
+
+    // commit the connection to backend when user finishes input
+    async function commitConnection() {
+      const val = ident.value.trim();
+      const t = type.value;
+      if (!val || t === 'None') return;
+
+      try {
+        if (t === 'APRS') {
+          await invoke('set_aprs_callsign', { id: val });
+          await invoke('set_aprs');
+          if (!activeAprsCallsigns.includes(val)) activeAprsCallsigns.push(val);
+        } else if (t === 'Iridium') {
+          await invoke('set_irr_modem', { id: val });
+          await invoke('set_iridium');
+          if (!activeIridiumModems.includes(val)) activeIridiumModems.push(val);
+        }
+
+          // trigger UI update and ask backend to refresh immediately
+          await updateConnectedClients();
+          try { await invoke('update'); } catch(e) {}
+
+          // give backend a bit and then refresh indicators
+          setTimeout(()=>{ updateConnectionIndicators().catch(()=>{}); }, 800);
+      } catch (err) {
+        if (console_text) console_text.textContent = 'Error saving connection: ' + err;
+        else console.error('Error saving connection:', err);
+      }
+    }
+
+    // remove handler: remove from DOM and from active lists
+    remove.addEventListener('click', async () => {
+      const val = ident.value.trim();
+      const t = type.value;
+      if (t === 'APRS') {
+        const idx = activeAprsCallsigns.indexOf(val);
+        if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
+        try { await invoke('set_aprs_callsign', { id: '' }); await invoke('set_aprs'); } catch(e){}
+      } else if (t === 'Iridium') {
+        const idx = activeIridiumModems.indexOf(val);
+        if (idx >= 0) activeIridiumModems.splice(idx, 1);
+        try { await invoke('set_irr_modem', { id: '' }); await invoke('set_iridium'); } catch(e){}
+      }
+      container.removeChild(entry);
+      await updateConnectedClients();
+      try { await invoke('update'); } catch(e) {}
+      setTimeout(()=>{ updateConnectionIndicators().catch(()=>{}); }, 800);
+    });
+
+    // wire input events: commit on blur or enter
+    ident.addEventListener('blur', commitConnection);
+    ident.addEventListener('keypress', (e) => { if (e.key === 'Enter') commitConnection(); });
+    type.addEventListener('change', () => { /* keep selection; user must enter identifier */ });
+
+    // Activate toggle: ensures backend instance is created and tracked
+    activate.addEventListener('click', async () => {
+      const val = ident.value.trim();
+      const t = type.value;
+      if (!val || t === 'None') { showConsole('Enter identifier and select method first'); return; }
+      if (activate.dataset.active === '1') {
+        // deactivate
+        activate.dataset.active = '0';
+        activate.innerText = 'Activate';
+        if (t === 'APRS') {
+          const idx = activeAprsCallsigns.indexOf(val); if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
+          try { await invoke('set_aprs_callsign', { id: '' }); await invoke('set_aprs'); } catch(e) { console.error(e); }
+        } else if (t === 'Iridium') {
+          const idx = activeIridiumModems.indexOf(val); if (idx >= 0) activeIridiumModems.splice(idx, 1);
+          try { await invoke('set_irr_modem', { id: '' }); await invoke('set_iridium'); } catch(e) { console.error(e); }
+        }
+        indicator.classList.remove('ok');
+        showConsole('Deactivated ' + val);
+        await updateConnectedClients();
+        return;
+      }
+
+      // activate
+      showConsole('Activating ' + val + '...');
+      await commitConnection();
+      activate.dataset.active = '1';
+      activate.innerText = 'Deactivate';
+      indicator.classList.add('pending');
+      // let background process connect and then update indicators
+      setTimeout(async () => { await updateConnectionIndicators(); indicator.classList.remove('pending'); }, 1500);
+    });
+
+    // test feature removed
+
+    entry.appendChild(indicator);
+    entry.appendChild(type);
+    entry.appendChild(ident);
+    entry.appendChild(activate);
+    entry.appendChild(remove);
+
+    container.appendChild(entry);
+    ident.focus();
+}
+
+//------------------------------Connection Handlers------------------------------
+
+
+// update indicators for all connection entries by querying backend validity
+async function updateConnectionIndicators() {
+  try {
+    const entries = document.querySelectorAll('.connection-entry');
+    if (!entries || entries.length === 0) return;
+
+    const aprsValidity = await invoke('get_aprs_validity').catch(() => []);
+    const iridiumValidity = await invoke('get_iridium_validity').catch(() => []);
+    const savedAprsCallsign = await invoke('get_aprs_callsign').catch(()=>null);
+    const savedIrrModem = await invoke('get_irr_modem').catch(()=>null);
+
+    entries.forEach(entry => {
+      const sel = entry.querySelector('select');
+      const input = entry.querySelector('input');
+      const indicator = entry.querySelector('.conn-indicator');
+      if (!sel || !input || !indicator) return;
+      const t = sel.value;
+      const id = input.value.trim();
+
+      // clear pending marker if any
+      indicator.classList.remove('pending');
+      if (t === 'APRS') {
+
+        // Prefer exact match with the backend's stored callsign if available
+        let isValid = false;
+        if (savedAprsCallsign && id === savedAprsCallsign) {
+          isValid = aprsValidity.some(v => v === true);
+        } else if (aprsValidity.length > 0 && activeAprsCallsigns.length === aprsValidity.length) {
+          const idx = activeAprsCallsigns.indexOf(id);
+          isValid = (idx >= 0 && aprsValidity[idx]);
+        } else {
+          // fallback: if any validity true, and we have only one active entry, mark it
+          if (aprsValidity.filter(Boolean).length === 1 && activeAprsCallsigns.length === 1 && activeAprsCallsigns[0] === id) isValid = true;
+        }
+        if (isValid) indicator.classList.add('ok'); else indicator.classList.remove('ok');
+      } else if (t === 'Iridium') {
+        let isValid = false;
+        if (savedIrrModem && id === savedIrrModem) {
+          isValid = iridiumValidity.some(v => v === true);
+        } else if (iridiumValidity.length > 0 && activeIridiumModems.length === iridiumValidity.length) {
+          const idx = activeIridiumModems.indexOf(id);
+          isValid = (idx >= 0 && iridiumValidity[idx]);
+        } else {
+          if (iridiumValidity.filter(Boolean).length === 1 && activeIridiumModems.length === 1 && activeIridiumModems[0] === id) isValid = true;
+        }
+        if (isValid) indicator.classList.add('ok'); else indicator.classList.remove('ok');
+      } else {
+        indicator.classList.remove('ok');
+      }
+    });
+  } catch (err) {
+    console.error('Error updating connection indicators:', err);
+  }
+}
+
+//update UTC text and last-update placeholder
+export function updateInfo({utcText, lastUpdate, cityState}){
+    const u = document.getElementById('utc-msg');
+    const l = document.getElementById('last-update');
+    const c = document.getElementById('citystate');
+    if(u && utcText) u.textContent = utcText;
+    if(l && lastUpdate) l.textContent = lastUpdate;
+    if(c && cityState) c.textContent = cityState;
+}
+
+//helper to show short messages in the console area
+function showConsole(msg, timeout=4000) {
+  if (console_text) {
+    console_text.textContent = msg;
+    if (timeout > 0) setTimeout(()=>{ if (console_text && console_text.textContent === msg) console_text.textContent = ''; }, timeout);
+  } else {
+    console.log(msg);
+  }
+}
+
 
 //------------------------------Map Functions/Handlers------------------------------
 
@@ -573,6 +886,83 @@ function updateMap(latitude, longitude, altitude) {
   }, '*');
   
   console.log(`Map updated to: ${latitude}, ${longitude}, ${altitude}m`);
+}
+
+
+//------------------------------Compass Functions/Handlers------------------------------
+
+//gets the user location using a couple different methods
+async function getUserLocation(){
+  try {
+    // 1) Prefer explicit Ground Station inputs if the user puts it in the Settings panel
+    const gsInputs = document.querySelectorAll('.ground-station input');
+    if (gsInputs && gsInputs.length >= 2) {
+      const latVal = gsInputs[0].value && gsInputs[0].value.trim();
+      const lonVal = gsInputs[1].value && gsInputs[1].value.trim();
+      const latNum = Number(latVal);
+      const lonNum = Number(lonVal);
+      if (!Number.isNaN(latNum) && !Number.isNaN(lonNum) && latVal !== '' && lonVal !== '') {
+        return { latitude: latNum, longitude: lonNum };
+      }
+    }
+    // 2) Fallback to browser geolocation (wrapped as a Promise)
+    return await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return resolve(null);
+      const options = { timeout: 7000, maximumAge: 0 };
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve(pos && pos.coords ? { latitude: pos.coords.latitude, longitude: pos.coords.longitude } : null),
+        (err) => { console.warn(`Geolocation error: ${err && err.message}`); resolve(null); },
+        options
+      );
+    });
+  } catch (err) {
+    console.warn('getUserLocation error:', err);
+    return null;
+  }
+}
+
+function angleFromCoordinate(lat1, long1, lat2, long2){
+  // compute bearing from (lat1,long1) -> (lat2,long2) in degrees (0 = north)
+  const toRad = (d) => d * Math.PI / 180;
+  const toDeg = (r) => r * 180 / Math.PI;
+  const t1 = toRad(lat1);
+  const t2 = toRad(lat2);
+  const delta = toRad(long2 - long1);
+  const y = Math.sin(delta) * Math.cos(t2);
+  const x = Math.cos(t1) * Math.sin(t2) - Math.sin(t1) * Math.cos(t2) * Math.cos(delta);
+  let theta = Math.atan2(y, x);
+  theta = toDeg(theta);
+  return (theta + 360) % 360;
+}
+
+async function updateCompass(lat, long){
+  try {
+    const ucoords = await getUserLocation();
+    if (ucoords && typeof ucoords.latitude === 'number' && typeof ucoords.longitude === 'number'){
+      const ulat = ucoords.latitude;
+      const ulong = ucoords.longitude;
+      const bearing = angleFromCoordinate(ulat, ulong, lat, long);
+      if (typeof setCompassAngle === 'function') setCompassAngle(bearing);
+    } else {
+      if (console_text) console_text.textContent = 'Could not determine user location for compass';
+    }
+  } catch (err) {
+    console.error('updateCompass error:', err);
+  }
+}
+
+
+//------------------------------Altitude Graph------------------------------
+
+//updates the alt graph
+function updateAltitudeGraph(time, alt) {
+    const iframe = document.getElementById('altitude-graph');
+    
+    iframe.contentWindow.postMessage({
+        type: 'ADD_DATA',
+        time: time,
+        alt: alt
+    }, '*'); 
 }
 
 //------------------------------Cleanup------------------------------
