@@ -50,16 +50,25 @@
 
                 <section id="predictions" class="panel">
                     <h2>Predictions</h2>
-                    <label><span>Algorithm</span><select><option>SondeHub (Tawhiri)</option></select></label>
+                    <label><span>Algorithm</span>
+                        <select id="prediction-algo">
+                            <option value="SondeHub">SondeHub (Tawhiri)</option>
+                        </select>
+                    </label>
                     <label><span>Weather Model</span><select><option>GFS</option></select></label>
+                    
                     <div class="payload-params">
-                        <label><span>Payload mass</span><input type="text"></label>
-                        <label><span>Balloon mass</span><input type="text"></label>
-                        <label><span>Parachute drag coeff</span><input type="text"></label>
+                        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Payload Parameters</h3>
+                        <label><span>Payload mass (kg)</span><input type="text" step="0.1" placeholder="2.0"></label>
+                        <label><span>Balloon mass (kg)</span><input type="text" step="0.1" placeholder="1.5"></label>
+                        <label><span>Parachute drag coeff</span><input type="text" step="0.01" placeholder="0.5"></label>
+                        <label><span>Burst altitude (m)</span><input type="text" step="100" placeholder="30000"></label>
+                        <label><span>Descent rate (m/s)</span><input type="text" step="0.1" placeholder="5.0"></label>
                     </div>
-                    <div class="run-controls" style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
-                        <button>Run Predictions</button>
-                        <button>AUTO</button>
+                    
+                    <div class="run-controls" style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                        <button id="run-prediction-btn">Run Predictions</button>
+                        <button id="auto-prediction-btn">AUTO</button>
                     </div>
                 </section>
 
@@ -81,6 +90,27 @@
                         <label><span>RFD</span><input type="text"></label>
                         <label><span>Arduino</span><input type="text"></label>
                     </div>
+
+                    <div class="credits">
+                        <h3>Credits</h3>
+                        <label>
+                            <span>Tracking APIs</span>
+                            <label>
+                                <a href="https://aprs.fi/" target="_blank">aprs.fi</a> 
+                                <a href="https://www.sondehub.org/" target="_blank">SondeHub</a> 
+                            </label>
+                        </label>
+                        <label>
+                            <span>Map APIs</span>
+                            <label>
+                                <a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a> 
+                                <a href="https://opensky-network.org/" target="_blank">OpenSky</a>
+                                <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> 
+                                <a href="https://leafletjs.com/" target="_blank">Leaflet</a>
+                            </label>
+                        </label>                        
+                        <label>Made with love by Ayush Sahoo and Samhita Saragadam</label>
+                    </div>                    
                 </section>
             </div>
 
@@ -106,13 +136,7 @@
                     </div>
 
                     <div class="predictions-box">
-                        <h2>Prediction Controls</h3>
-                        <label>Prediction Algorithm
-                            <select id="prediction-algo">
-                                <option>SondeHub (Tawhiri)</option>
-                                <option>Default</option>
-                            </select>
-                        </label>
+                        <h2>Prediction Controls</h2>
                         <label>Filtering
                             <select id="filtering-method">
                                 <option>Recent</option>

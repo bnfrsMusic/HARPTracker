@@ -5,7 +5,7 @@ export function createCompass(container) {
         <svg class="compass" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <style> 
-                    .tick { stroke: rgba(0,0,0,0.4); stroke-width: 1.5; stroke-linecap: round; }
+                    .tick { stroke: var(--compass-tick-color); stroke-width: 1.5; stroke-linecap: round; }
                     .compass-text { 
                         fill: var(--primary-color); 
                         font-family: afacad-flux, sans-serif;

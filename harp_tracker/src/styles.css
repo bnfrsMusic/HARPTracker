@@ -48,21 +48,21 @@ h1 {
 }
 
 h2 {
+    color: var(--text-main);
+    border-bottom: 2px solid var(--primary-color);
     font-family: afacad-flux, sans-serif;
-    color: black;
     text-align: center;
     font-size: clamp(1.5rem, 2vw, 2.0rem);
     margin: 0.5em 0;
-    border-bottom: 2px solid #4e5a94;
 }
 
 h3 {
+    color: var(--text-main);
+    border-bottom: 2px solid var(--primary-color);
     font-family: afacad-flux, sans-serif;
     font-size: clamp(1rem, 1.5vw, 1.5rem);
-    color: black;
     font-weight: bold;
     margin: 0.5em 0;
-    border-bottom: 1px solid #4e5a94;
 }
 
 p {
@@ -82,7 +82,7 @@ input[type="text"]
     font-family: afacad-flux;
     font-size: 1em;
     width: 70%;
-    border: 1px solid black;
+    border: 1px solid var(--border-color);
 }
 
 select
@@ -90,29 +90,73 @@ select
     font-family: afacad-flux;
     padding: 0.5em 0;
     font-size: 1em;
-    border: 1px solid black;
+    border: 1px solid var(--border-color);
     border-radius: 10px;
 }
 
 button {
     font-family: afacad-flux, sans-serif;
     font-size: 1em;
-    border: 1px solid black;
     font-weight: normal;
     transition: background-color 0.3s, color 0.3s;
-    background-color: white;
+    background-color: var(--butt-drop-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
     cursor: pointer;
 }
 
 /* Variables */
 :root {
+    /* Branding & Logic Colors */
     --primary-color: #4e5a94;
     --accent-color: #4e5a94;
-    --bg-color: #f6f6f6;
-    --muted: #e9e9ef;
     --danger: #c0392b;
     --ok: #2ecc71;
+    --pending: #f1c40f;
+    
+    /* Surface Colors */
+    --bg-color: #f6f6f6;
     --panel-bg: #ffffff;
+    --muted: #e9e9ef;
+    --map-frame-bg: #cfe8ef;
+    --tab-bg: rgba(255, 255, 255, 0.7);
+    --butt-drop-bg: #ffffff;
+    
+    /* Text & Lines */
+    --text-main: #000000;
+    --panel-text-color: #333333;
+    --console-text-color: #222222;
+    --border-color: #000000;
+    --scrollbar-color: rgba(0, 0, 0, 0.1);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    
+    /* Shadows & Effects */
+    --blur-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --box-shadow-light: rgba(0, 0, 0, 0.3);
+    --box-shadow-medium: rgba(0, 0, 0, 0.18);
+    --box-shadow-heavy: rgba(0, 0, 0, 0.38);
+    
+    /* Focus & Hover States */
+    --focus-ring: rgba(78, 90, 148, 0.1);
+    --primary-border-alpha: rgba(78, 90, 148, 0.2);
+    
+    /* Connection Entry */
+    --connection-entry-bg: rgba(233, 233, 239, 0.5);
+    --connection-entry-border: rgba(0, 0, 0, 0.05);
+    
+    /* Console */
+    --console-bg: rgba(246, 246, 246, 0.7);
+    
+    /* Placeholder */
+    --placeholder-color: #666666;
+    
+    /* Active Tab Text */
+    --active-tab-text: #ffffff;
+
+    /* Compass Tick Color */
+    --compass-tick-color:  var(--primary-color);
+
+    /* Layout (Constants) */
     --header-height: 6rem; 
     --panel-width: 30rem; 
     --side-tab-width: 6.5rem;
@@ -120,9 +164,74 @@ button {
     --map-height: clamp(30rem, 70vh, 50rem);
     --compass-size: clamp(4rem, 8vw, 8.75rem);
     --panel-footer-height: 3.5rem;
-    --blur: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --blur: var(--blur-shadow);
     --glass-blur: blur(8px);
 }
+
+[data-theme="dark"] {
+    /* Branding & Logic Colors */
+    --primary-color: #7a89d1;
+    --accent-color: #7a89d1;
+    --danger: #e74c3c;
+    --ok: #2ecc71;
+    --pending: #f1c40f;
+    
+    /* Surfaces */
+    --bg-color: #121212;
+    --panel-bg: #1e1e1e;
+    --muted: #2d2d2d;
+    --map-frame-bg: #1a262b;
+    --tab-bg: rgba(30, 30, 30, 0.8);
+    --butt-drop-bg: #333333;
+    
+    /* Text & Lines */
+    --text-main: #e0e0e0;
+    --panel-text-color: #cccccc;
+    --console-text-color: #ffffff;
+    --border-color: #444444;
+    --scrollbar-color: rgba(255, 255, 255, 0.2);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    
+    /* Shadows & Effects */
+    --blur-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    --box-shadow-light: rgba(0, 0, 0, 0.5);
+    --box-shadow-medium: rgba(0, 0, 0, 0.4);
+    --box-shadow-heavy: rgba(0, 0, 0, 0.6);
+    
+    /* Focus & Hover States */
+    --focus-ring: rgba(122, 137, 209, 0.2);
+    --primary-border-alpha: rgba(122, 137, 209, 0.3);
+    
+    /* Connection Entry */
+    --connection-entry-bg: rgba(45, 45, 45, 0.5);
+    --connection-entry-border: rgba(255, 255, 255, 0.05);
+    
+    /* Console */
+    --console-bg: rgba(30, 30, 30, 0.8);
+    
+    /* Placeholder */
+    --placeholder-color: #888888;
+
+    --compass-tick-color:  var(var(--active-tab-text))
+    
+    /* Active Tab Text */
+    --active-tab-text: #ffffff;
+}
+
+/* Smooth Transition */
+*, *::before, *::after {
+    transition: background-color 0.3s ease, 
+                color 0.3s ease, 
+                border-color 0.3s ease, 
+                box-shadow 0.3s ease, 
+                backdrop-filter 0.3s ease;
+}
+
+.preload * {
+    transition: none !important;
+}
+
+
 
 /* App grid */
 .app-container {
@@ -171,7 +280,8 @@ button {
 
 .map-frame {
     background: var(--panel-bg);
-    border: 3px solid black;
+    border: 3px solid;
+    border-color: var(--border-color) !important;
     height: var(--map-height);
     box-shadow: var(--blur);
     display: block;
@@ -185,7 +295,7 @@ button {
     height: calc(var(--map-height) - var(--panel-footer-height));
     border: none;
     display: block;
-    background: #cfe8ef;
+    background: var(--map-frame-bg);
 }
 
 .map-footer {
@@ -194,7 +304,8 @@ button {
     right: 0;
     bottom: 0;
     background: var(--muted);
-    border-top: 3px solid black;
+    border-top: 3px solid;
+    border-color: var(--border-color) !important;
     display: flex;
     justify-content: space-between;
     padding: 0.6rem 0.8rem;
@@ -204,15 +315,16 @@ button {
 /* console stuff */
 
 .console-row { margin-top: 0.6rem; }
-.console-row #console-text { margin: 0; color: #222; font-size: 1rem; }
+.console-row #console-text { margin: 0; color: var(--console-text-color); font-size: 1rem; }
 
 /* Altitude and Prediction boxes */
 
 .altitude-box, .predictions-box {
     background: var(--panel-bg);
-    border: 3px solid black;
+    border: 3px solid;
+    border-color: var(--border-color) !important;
     padding: 0.8rem;
-    box-shadow: 0 0.125rem 0.625rem rgba(0,0,0,0.3);
+    box-shadow: 0 0.125rem 0.625rem var(--box-shadow-light);
 }
 
 .altitude-box { 
@@ -270,10 +382,10 @@ body.panel-open .side-tabs { right: var(--panel-width); }
 .side-tab {
     width: var(--side-tab-width);
     height: 10.5rem;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--tab-bg);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
-    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid var(--glass-border) !important;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -293,7 +405,7 @@ body.panel-open .side-tabs { right: var(--panel-width); }
 }
 .side-tab.active {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--active-tab-text);
     border-color: var(--primary-color) !important;
 }
 
@@ -309,10 +421,10 @@ body.panel-open .side-tabs { right: var(--panel-width); }
     width: var(--panel-width);
     transform: translateX(var(--panel-width));
     transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
-    background: rgba(255, 255, 255, 0.7); /* Semi-transparent white */
+    background: var(--tab-bg);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
-    border-left: 1px solid rgba(0, 0, 0, 0.1) !important;
+    border-left: 1px solid var(--glass-border) !important;
     box-shadow: var(--blur);
     padding: 1.5rem;
     z-index: 120;
@@ -328,7 +440,7 @@ body.panel-open .side-tabs { right: var(--panel-width); }
 /* Panel Headers and Labels */
 .panel h2, .panel h3 {
     text-align: left;
-    border-bottom: 1px solid rgba(78, 90, 148, 0.2);
+    border-bottom: 1px solid var(--primary-border-alpha);
     padding-bottom: 0.5rem;
     margin-top: 1.5rem;
 }
@@ -336,7 +448,7 @@ body.panel-open .side-tabs { right: var(--panel-width); }
 .panel label {
     margin: 1rem 0;
     font-weight: 500;
-    color: #333;
+    color: var(--panel-text-color);
 }
 
 /* Ensure the scrollbar doesn't ruin the glass aesthetic */
@@ -344,7 +456,7 @@ body.panel-open .side-tabs { right: var(--panel-width); }
     width: 6px;
 }
 .panel::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--scrollbar-color);
     border-radius: 10px;
 }
 
@@ -359,9 +471,9 @@ body.panel-open .side-tabs { right: var(--panel-width); }
     gap: 0.75rem;
     align-items: center;
     padding: 0.75rem;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    background: rgba(233, 233, 239, 0.5); /* Muted glass look */
-    border-radius: 8px; /* Rounded corners for a modern feel */
+    border: 1px solid var(--connection-entry-border);
+    background: var(--connection-entry-bg);
+    border-radius: 8px;
     margin-bottom: 0.5rem;
 }
 
@@ -369,23 +481,24 @@ body.panel-open .side-tabs { right: var(--panel-width); }
 input[type="text"], 
 select, 
 button {
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--glass-border);
     border-radius: 6px;
     padding: 0.5rem;
-    background: white;
+    background: var(--butt-drop-bg);
     transition: border-color 0.2s, box-shadow 0.2s;
+    color: var(--text-main);
 }
 
 input[type="text"]:focus, 
 select:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(78, 90, 148, 0.1);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 button:hover {
     background-color: var(--primary-color);
-    color: white;
+    color: var(--active-tab-text);
     border-color: var(--primary-color);
 }
 
@@ -409,7 +522,7 @@ button:hover {
 
 /* turns yellow when 'pending' */
 .conn-indicator.pending { 
-    background-color: #f1c40f !important; 
+    background-color: var(--pending) !important; 
     box-shadow: 0 0 8px rgba(241, 196, 15, 0.5);
 }
 
@@ -426,7 +539,7 @@ button:hover {
 
 .compass-area { display:flex; justify-content:center; padding: 1rem; }
 
-.compass { width: 4.5rem; height: 4.5rem; filter: drop-shadow(0 0.125rem 0.3rem rgba(0,0,0,0.38));}
+.compass { width: 4.5rem; height: 4.5rem; filter: drop-shadow(0 0.125rem 0.3rem var(--box-shadow-heavy));}
 
 
 /* compass stuff */
@@ -446,11 +559,11 @@ button:hover {
     -webkit-backdrop-filter: var(--glass-blur);
     border-radius: 50%; 
     box-shadow: var(--blur);
-    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid var(--glass-border) !important;
     padding: 0.5rem; 
 }
 /* make compass letters and ticks more prominent */
-#compass-top-left svg { display:block; }
+#compass-top-left svg { display:block;}
 #compass-top-left text {
     font-family: afacad-flux, sans-serif;
     fill: var(--primary-color); 
@@ -486,7 +599,7 @@ button:hover {
     box-shadow: var(--blur);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur); /* Safari support */
-    border: 1px solid rgba(0, 0, 0, 0.1) !important; /* Soften the harsh black borders */
+    border: 1px solid var(--glass-border) !important;
 }
 
 
@@ -499,10 +612,10 @@ button:hover {
 }
 
 /* drawer overlays the side-right area */
-.panel-contents { z-index: 120; box-shadow: -0.375rem 0 1.125rem rgba(0,0,0,0.18); }
+.panel-contents { z-index: 120; box-shadow: -0.375rem 0 1.125rem var(--box-shadow-medium); }
 .side-right { z-index: 10; }
 
-label { display: block; margin: 0.4rem 0; }
+label { display: block; margin: 0.4rem 0; color: var(--text-main)}
 
 .console-area {
     position: fixed; 
@@ -526,7 +639,7 @@ label { display: block; margin: 0.4rem 0; }
     
     /* same glassy effect as earlier */
     /* Can ya tell I like how it looks? */
-    background: rgba(246, 246, 246, 0.7); 
+    background: var(--console-bg); 
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     box-shadow: var(--blur);
@@ -565,8 +678,8 @@ Grid Layout for the main page
 
 .center {
     grid-area: main;
-    border-left: 2px solid #4e5a94;
-    border-right: 2px solid #4e5a94;
+    border-left: 2px solid var(--primary-color);
+    border-right: 2px solid var(--primary-color);
 }
 
 .right {
@@ -579,8 +692,8 @@ Center grid, screen for live tracking information
 .frame-container {
     display: flex;
     flex-direction: column;
-    background-color: white;
-    border: 1px solid black;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
     height: clamp(30rem, 40vh, 31.25rem);
     overflow: hidden;
     margin: 0 auto;
@@ -593,7 +706,7 @@ iframe.screen {
     margin: 0;
     padding: 0;
     border: none;
-    background-color: black;
+    background-color: var(--border-color);
     display: block;
 }
 
@@ -692,5 +805,5 @@ Right grid, Connected Clients setup
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #666;
+    color: var(--placeholder-color);
 }

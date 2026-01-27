@@ -2,7 +2,7 @@
 use std::fmt::Display;
 
 /// Helper function for the Tracker Module
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackingType{
     APRS,
     Iridium,

@@ -23,44 +23,65 @@ impl SondeHub {
         Self {
             active: true,
             tracking_type:TrackingType::SondeHub,
-            base_url: "https://api.v2.sondehub.org/amateur?callsign".to_string(),
+            base_url: "https://api.v2.sondehub.org/amateur?callsign=".to_string(),
             call_sign: call_sign.to_string(),
             client: Client::new(),
-            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0},
+            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0, horiz_vel:0.0, vert_vel:0.0},
             ground_speed: 0.0,
             comment: String::new(),
         }
     }
 
     pub fn update_position(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        
-        let response: Value = self.client.get(&self.base_url).send()?.json()?;
-        let call = Some(response[self.call_sign.clone()].clone());
-        
-        if call.is_some() && call.as_ref().unwrap().is_object(){
-            // Extract the position data
-        
-            let call = &call.unwrap();
-            self.position_time.lat = call["lat"].as_f64().unwrap();
-            self.position_time.lon = call["lon"].as_f64().unwrap();
-            self.position_time.alt = call["alt"].as_f64().unwrap();
-            let datetime = call["time_received"].as_str().unwrap();
-            let datetime: DateTime<Utc> = datetime.parse().expect("Failed to parse datetime");
-            self.position_time.last_update = datetime.timestamp() as u64;
+        // Build request URL using the configured base_url and callsign
+        let url = format!("{}{}", self.base_url, self.call_sign);
+        let response: Value = self.client.get(&url).send()?.json()?;
 
-            let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        
-            let age_seconds = current_time.saturating_sub(self.position_time.last_update);
+        // response may be either an object keyed by callsign or the callsign object directly
+        let call_val = if response.is_object() && response.get(&self.call_sign).is_some() {
+            response.get(&self.call_sign).cloned()
+        } else {
+            Some(response.clone())
+        };
 
-            
-            println!(
-                "SondeHub Position: Call: {}, Lat: {}, Lon: {}, Alt: {}m, Last Update: {}s ago",
-                self.call_sign, self.position_time.lat, self.position_time.lon, self.position_time.alt, age_seconds
-            );
-            return Ok(());
+        if let Some(call) = call_val {
+            if call.is_object() {
+                // Extract the position data
+                let lat = call["lat"].as_f64().unwrap_or(0.0);
+                let lon = call["lon"].as_f64().unwrap_or(0.0);
+                let alt = call["alt"].as_f64().unwrap_or(0.0);
+                let datetime = call["time_received"].as_str().unwrap_or("0");
+                let datetime: DateTime<Utc> = datetime.parse().unwrap_or_else(|_| Utc::now());
+                let dte = datetime.timestamp() as u64;
+
+                // Try to extract horizontal and vertical speeds from commonly used keys
+                let horiz = call["ground_speed"].as_f64()
+                    .or_else(|| call["speed"].as_f64())
+                    .or_else(|| call["ascent_rate"].as_f64())
+                    .or_else(|| call["hspd"].as_f64())
+                    .unwrap_or(0.0);
+
+                let vert = call["vertical_velocity"].as_f64()
+                    .or_else(|| call["vel_h"].as_f64())
+                    .unwrap_or(0.0);
+
+                self.ground_speed = horiz;
+                self.position_time.update(lat, lon, alt, dte, horiz, vert);
+
+                let current_time = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                let age_seconds = current_time.saturating_sub(self.position_time.last_update);
+
+                println!(
+                    "SondeHub Position: Call: {}, Lat: {}, Lon: {}, Alt: {}m, Last Update: {}s ago",
+                    self.call_sign, self.position_time.lat, self.position_time.lon, self.position_time.alt, age_seconds
+                );
+
+                return Ok(());
+            }
         }
 
         Err("No SondeHub telemetry data found for this callsign".into())
