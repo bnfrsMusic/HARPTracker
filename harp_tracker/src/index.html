@@ -40,12 +40,15 @@
 
                 <section id="controls" class="panel">
                     <h2>Controls</h2>
+                    
+                    <h3>⚠️ AREA UNDER CONSTRUCTION ⚠️</h3>
+
                     <div class="joystick-area">
-                        <div class="joystick placeholder">Joystick Control (Not implemented)</div>
-                        <div class="tracking-toggle">Tracking: <button>Toggle</button></div>
+                        <!-- <div class="joystick placeholder">Joystick Control (Not implemented)</div> -->
+                        <!-- <div class="tracking-toggle">Tracking: <button>Toggle</button></div> -->
                     </div>
 
-                    <div class="venting placeholder" style="color: #c0392b">Venting Commands (Not implemented)</div>
+                    <!-- <div class="venting placeholder" style="color: #c0392b">Venting Commands (Not implemented)</div> -->
                 </section>
 
                 <section id="predictions" class="panel">
@@ -68,7 +71,6 @@
                     
                     <div class="run-controls" style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
                         <button id="run-prediction-btn">Run Predictions</button>
-                        <button id="auto-prediction-btn">AUTO</button>
                     </div>
                 </section>
 
@@ -91,6 +93,13 @@
                         <label><span>Arduino</span><input type="text"></label>
                     </div>
 
+
+                    <div class="api-keys">
+                        <h3>API Keys</h3>
+                        <label><span>aprs.fi</span><input id="aprsfi-api-key" type="text" placeholder="optional"></label>
+                        <label><span>stadiamaps</span><input id="stadia-api-key" type="text" placeholder="optional"></label>
+                    </div>
+
                     <div class="credits">
                         <h3>Credits</h3>
                         <label>
@@ -101,14 +110,20 @@
                             </label>
                         </label>
                         <label>
-                            <span>Map APIs</span>
+                            <span>Map Layers</span>
                             <label>
                                 <a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a> 
                                 <a href="https://opensky-network.org/" target="_blank">OpenSky</a>
-                                <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> 
-                                <a href="https://leafletjs.com/" target="_blank">Leaflet</a>
+                                <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>
                             </label>
                         </label>                        
+                        <label>
+                            <span>Map APIs</span>
+                            <label>
+                                <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> 
+                                <a href="https://leafletjs.com/" target="_blank">Leaflet</a>    
+                            </label>
+                        </label>
                         <label>Made with love by Ayush Sahoo and Samhita Saragadam</label>
                     </div>                    
                 </section>
@@ -135,14 +150,17 @@
                         <iframe id="altitude-graph" src="alt-graph.html"></iframe>
                     </div>
 
-                    <div class="predictions-box">
-                        <h2>Prediction Controls</h2>
-                        <label>Filtering
+                    <div class="quickcontrols-box">
+                        <h2>Quick Controls</h2>
+                        <label>Data Filtering
                             <select id="filtering-method">
                                 <option>Recent</option>
                                 <option selected>Average</option>
                                 <option>Median</option>
                             </select>
+                        </label>
+                        <label>Aircraft Display Radius (km)
+                            <input id="aircraft-radius-km" type="text" value="100">
                         </label>
                     </div>
                 </section>

@@ -71,11 +71,23 @@ pub static SONDEHUB_PREDICTOR: Lazy<SondeHubPredictor> = Lazy::new(|| SondeHubPr
 
 //API Keys
 pub static APRSFI_API_KEY: Lazy<String> = Lazy::new(|| {
-    dotenv().ok();
     env::var("APRSFI_API_KEY").unwrap_or_else(|_| {
         eprintln!("Warning: APRS_KEY not set in .env file!");
         String::new()
     })
+});
+
+// optional runtime override (set via frontend input)
+pub static APRSFI_API_KEY_OVERRIDE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+pub static STADIA_MAPS_API_KEY: Lazy<String> = Lazy::new(|| {
+    let key = env::var("STADIAMAPS_API_KEY").unwrap_or_else(|_| String::new());
+    if key.is_empty() {
+        eprintln!("Warning: STADIAMAPS_API_KEY not set in .env file!");
+    } else {
+        eprintln!("Stadia Maps API key loaded: {}", key);
+    }
+    key
 });
 
 // Return the current UTC time formatted
@@ -127,12 +139,49 @@ fn get_aprs_callsign() -> String {
     callsign
 }
 
+// Get the Stadia Maps API key from .env
+#[tauri::command]
+fn get_stadia_api_key() -> String {
+    let val = STADIA_MAPS_API_KEY.as_str().to_string();
+    println!("get_stadia_api_key called, returning '{}'", if val.is_empty() {"<empty>"} else {"<redacted>"});
+    val
+}
+
+// Return the effective APRS.FI API key
+#[tauri::command]
+fn get_aprsfi_api_key() -> String {
+    if let Some(o) = APRSFI_API_KEY_OVERRIDE.lock().unwrap().clone() {
+        o
+    } else {
+        APRSFI_API_KEY.as_str().to_string()
+    }
+}
+
+// Set or clear the APRS.FI API key override
+#[tauri::command]
+fn set_aprsfi_api_key(key: String) {
+    let mut guard = APRSFI_API_KEY_OVERRIDE.lock().unwrap();
+    if key.is_empty() {
+        *guard = None;
+        println!("APRSFI API key override cleared");
+    } else {
+        *guard = Some(key.clone());
+        println!("APRSFI API key override set");
+    }
+}
+
 // Init APRS with current callsign
 #[tauri::command]
 fn set_aprs() -> bool {
     let aprs_call = APRS_CALLSIGN.lock().unwrap();
     if !aprs_call.is_empty() {
-        TRACKER.lock().unwrap().new_aprs(APRSFI_API_KEY.as_str(), aprs_call.as_str());
+        // choose override key if present
+        let key = if let Some(o) = APRSFI_API_KEY_OVERRIDE.lock().unwrap().clone() {
+            o
+        } else {
+            APRSFI_API_KEY.as_str().to_string()
+        };
+        TRACKER.lock().unwrap().new_aprs(key.as_str(), aprs_call.as_str());
         true
     } else {
         false
@@ -505,6 +554,7 @@ fn run_prediction() -> Result<PredictionData, String> {
     // Run prediction using the selected predictor
     let mut manager = PREDICTION_MANAGER.lock().unwrap();
     let predictor_name = manager.get_predictor().to_string();
+    let params = manager.get_params().clone();
     
     let result = match predictor_name.as_str() {
         "SondeHub" => {
@@ -519,8 +569,11 @@ fn run_prediction() -> Result<PredictionData, String> {
         Ok(pred_result) => {
             println!("Prediction completed successfully");
             
+            //check if balloon has already burst
+            let has_burst = current_pos.alt >= params.burst_altitude || current_pos.vert_vel < 0.0;
+            
             // Convert to serializable format
-            let ascent: Vec<PredictionPoint> = pred_result.ascent.iter().map(|p| PredictionPoint {
+            let mut ascent: Vec<PredictionPoint> = pred_result.ascent.iter().map(|p| PredictionPoint {
                 lat: p.lat,
                 lon: p.lon,
                 alt: p.alt,
@@ -548,6 +601,13 @@ fn run_prediction() -> Result<PredictionData, String> {
                 time: p.last_update,
             }).collect();
             
+            //if burst already, remove ascent points and ensure burst is the starting point for descent
+            if has_burst {
+                println!("Balloon has already burst (alt: {}, burst_alt: {}, vert_vel: {}). Clearing ascent trajectory.", 
+                         current_pos.alt, params.burst_altitude, current_pos.vert_vel);
+                ascent.clear();
+            }
+            
             Ok(PredictionData {
                 ascent,
                 burst,
@@ -565,6 +625,9 @@ fn run_prediction() -> Result<PredictionData, String> {
 // Application run
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env file at startup
+    dotenv().ok();
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
@@ -581,7 +644,9 @@ pub fn run() {
             get_aprs_validity, get_iridium_validity,
             get_tracking_history,
             set_prediction_params, get_prediction_params,
-            set_predictor, get_predictor, run_prediction
+            set_predictor, get_predictor, run_prediction,
+            get_stadia_api_key,
+            get_aprsfi_api_key, set_aprsfi_api_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

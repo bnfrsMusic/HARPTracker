@@ -12,7 +12,7 @@ let ir_mod;
 let aprs_call;
 let lat, long, alt;
 let last_update;
-let city, state;
+let citystate;
 let aprs_butt, iridium_butt;
 let console_text;
 let radioDropdown;
@@ -137,8 +137,7 @@ async function init() {
   long = document.querySelector("#long");
   alt = document.querySelector("#alt");
   last_update = document.querySelector("#last-update");
-  city = document.querySelector("#city");
-  state = document.querySelector("#state");
+  citystate = document.querySelector("#citystate");
   aprs_butt = document.querySelector("#aprs_butt");
   iridium_butt = document.querySelector("#iridium_butt");
   console_text = document.querySelector("#console-text");
@@ -147,6 +146,18 @@ async function init() {
   
   // Setup prediction controls
   setupPredictionControls();
+
+  // Disable context menu on non-text elements to avoid accidental right-click UI interactions
+  document.addEventListener('contextmenu', (e) => {
+    try {
+      const tgt = e.target;
+      if (!tgt) { e.preventDefault(); return; }
+      // allow on form controls or editable regions
+      if (tgt.closest && (tgt.closest('input') || tgt.closest('textarea') || tgt.closest('select') || tgt.isContentEditable)) return;
+      // otherwise prevent
+      e.preventDefault();
+    } catch (err) { e.preventDefault(); }
+  });
   
   const filteringMethod = document.querySelector("#filtering-method");
   if (filteringMethod) {
@@ -159,6 +170,23 @@ async function init() {
     } catch (error) {
       console.error("Error loading filtering method:", error);
     }
+  }
+
+  // Setup aircraft radius control
+  const aircraftRadiusInput = document.querySelector("#aircraft-radius-km");
+  if (aircraftRadiusInput) {
+    aircraftRadiusInput.addEventListener("change", (e) => {
+      const radiusKm = parseFloat(e.target.value) || 100;
+      const radiusMeters = radiusKm * 1000;
+      const mapIframe = document.querySelector('.screen');
+      if (mapIframe && mapIframe.contentWindow) {
+        mapIframe.contentWindow.postMessage({
+          type: 'SET_AIRCRAFT_RADIUS',
+          radiusMeters: radiusMeters
+        }, '*');
+      }
+      if (console_text) console_text.textContent = `Aircraft display radius set to ${radiusKm} km`;
+    });
   }
 
   if (radioDropdown && radioInput) {
@@ -242,6 +270,51 @@ async function init() {
     aprs_call.addEventListener("keypress", function(event) {
       if (event.key === "Enter") {
         handleAprsInput(event);
+      }
+    });
+  }
+
+  //Stadia Maps API key field
+  const stadiaInput = document.querySelector('#stadia-api-key');
+  if (stadiaInput) {
+    stadiaInput.addEventListener('blur', async () => {
+      const val = stadiaInput.value.trim();
+      localStorage.setItem('stadia_api_key', val);
+      if (val) {
+        sendStadiaKeyToMap(val);
+      } else {
+        //user cleared key -> go back to .env value
+        let envK = '';
+        try { envK = await invoke('get_stadia_api_key'); } catch(e){}
+        if (envK) sendStadiaKeyToMap(envK);
+      }
+      console.log('Stadia API key updated to', val ? '<hidden>' : '(cleared)');
+    });
+    stadiaInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        stadiaInput.blur();
+      }
+    });
+  }
+
+  //APRS.FI API key input 
+  const aprsfiInput = document.querySelector('#aprsfi-api-key');
+  if (aprsfiInput) {
+    aprsfiInput.addEventListener('blur', async () => {
+      const val = aprsfiInput.value.trim();
+      localStorage.setItem('aprsfi_api_key', val);
+      try {
+        await invoke('set_aprsfi_api_key', { key: val });
+        console.log('APRS.FI API key updated');
+        // if APRS is already active, re-init
+        await invoke('set_aprs');
+      } catch (e) {
+        console.error('Failed to set APRS.FI API key:', e);
+      }
+    });
+    aprsfiInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        aprsfiInput.blur();
       }
     });
   }
@@ -379,6 +452,22 @@ async function loadSavedValues() {
     if (savedAprs) {
       if (aprs_call) aprs_call.value = savedAprs;
       previousAprsValue = savedAprs;
+    }
+
+    // load/stash Stadia Maps key from local storage
+    const stadiaInput = document.querySelector('#stadia-api-key');
+    const storedKey = localStorage.getItem('stadia_api_key') || '';
+    if (stadiaInput) stadiaInput.value = storedKey;
+    if (storedKey) {
+      sendStadiaKeyToMap(storedKey);
+    }
+
+    // load/stash APRS.FI key from local storage
+    const aprsfiInput = document.querySelector('#aprsfi-api-key');
+    const storedAprsKey = localStorage.getItem('aprsfi_api_key') || '';
+    if (aprsfiInput) aprsfiInput.value = storedAprsKey;
+    if (storedAprsKey) {
+      try { await invoke('set_aprsfi_api_key', { key: storedAprsKey }); } catch(e){}
     }
   } catch (error) {
     if (console_text) console_text.textContent = "Failed to load saved values:" + error;
@@ -564,6 +653,7 @@ async function updateLastUpdate() {
     console.error("Error updating last update time:", error);
   }
 }
+
 
 
 //------------------------------Input Handlers------------------------------
@@ -886,13 +976,26 @@ function initMapIframe() {
   // Set the iframe source to the map HTML file
   mapIframe.src = 'map.html';
   
-  window.addEventListener('message', (event) => {
+  window.addEventListener('message', async (event) => {
     // Check if the map is ready
     if (event.data && event.data.type === 'MAP_READY') {
       console.log('Map is ready');
       
       // Send current position if we have it
       updateMapWithCurrentPosition();
+      
+      // figure out which key to use: user override stored, else env value
+      const storedKey = localStorage.getItem('stadia_api_key') || '';
+      let envKey = '';
+      try {
+        envKey = await invoke('get_stadia_api_key');
+      } catch (e) {
+        console.warn('Unable to fetch env Stadia API key:', e);
+      }
+      const keyToSend = storedKey || envKey || '';
+      if (keyToSend) {
+        sendStadiaKeyToMap(keyToSend);
+      }
     }
   });
 }
@@ -945,9 +1048,20 @@ async function updateMap(latitude, longitude, altitude, horiz_vel, vert_vel) {
     alt: altitude,
     horiz_vel: horiz_vel,
   }, '*');
-  
-  
 }
+
+// send updated Stadia API key to map iframe
+function sendStadiaKeyToMap(key) {
+  const mapIframe = document.querySelector('.screen');
+  if (mapIframe && mapIframe.contentWindow) {
+    mapIframe.contentWindow.postMessage({
+      type: 'SET_STADIA_KEY',
+      key: key || ''
+    }, '*');
+  }
+}
+  
+
 
 
 //------------------------------Compass Functions/Handlers------------------------------
@@ -1072,4 +1186,3 @@ function cleanup() {
 window.addEventListener("DOMContentLoaded", init);
 // Cleanup on page unload if needed
 window.addEventListener("beforeunload", cleanup);
-

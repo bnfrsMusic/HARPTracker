@@ -1,7 +1,7 @@
 {
   "productName": "harp_tracker",
   "version": "0.1.0",
-  "identifier": "com.harp_tracker.app",
+  "identifier": "com.harp-tracker.app",
   "build": {
     "frontendDist": "../src"
   },

@@ -1,5 +1,7 @@
 // Initialize the map when the DOM is loaded
-document.addEventListener('DOMContentLoaded', initMap);
+document.addEventListener('DOMContentLoaded', async () => {
+  await initMap();
+});
 
 // Global map variable
 let map = null;
@@ -12,8 +14,24 @@ let aircraftMarkers = new Map();
 let aircraftFetchInterval = null;
 let trackingPolyline = null;
 let trackingUpdateInterval = null;
-let aircraftRadiusMeters = 100000; // default 50 km
+let aircraftRadiusMeters = 100000; 
 let weatherLayers = {};
+let stadiaApiKey = '';
+let envStadiaKey = '';
+let darkMode = null; // leaflet layer for Stadia dark tiles
+
+// helper to refresh dark mode layer URL when API key changes
+function updateStadiaLayer() {
+  if (!darkMode) return;
+  let url = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+  if (stadiaApiKey) {
+    url += `?api_key=${stadiaApiKey}`;
+    console.log('Updating darkMode URL with key');
+  } else {
+    console.log('Updating darkMode URL without key');
+  }
+  darkMode.setUrl(url);
+}
 
 // RainViewer variables
 let rainviewerLayer = null;
@@ -28,7 +46,7 @@ let ascentLine = null;
 let descentLine = null;
 
 // initialize the map
-function initMap() {
+async function initMap() {
   // Create the map container if it doesn't exist
   if (!document.getElementById('map')) {
     const mapDiv = document.createElement('div');
@@ -40,6 +58,9 @@ function initMap() {
   
   map = L.map('map').setView([0, 0], 2);
 
+  //key will be given by parent frame via postMessage
+  console.log('Waiting for Stadia Maps API key from parent frame');
+
   // Base layers
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -48,7 +69,14 @@ function initMap() {
 
   // Dark mode layer (I like my eyes, sorry)
   // Stadia Maps Alidade Smooth Dark
-  const darkMode = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+  let stadiaUrl = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+  if (stadiaApiKey) {
+    stadiaUrl += `?api_key=${stadiaApiKey}`;
+    console.log('Stadia URL with API key:', stadiaUrl);
+  } else {
+    console.log('No API key available, using Stadia URL without authentication');
+  }
+  darkMode = L.tileLayer(stadiaUrl, {
     maxZoom: 20,
     attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a>, © <a href="https://openmaptiles.org/">OpenMapTiles</a> © <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   });
@@ -212,6 +240,17 @@ function handleMessage(event) {
     updateMapPosition(data.lat, data.lng, data.alt, data.horiz_vel, data.vert_vel);
   } else if (data && data.type === 'UPDATE_PREDICTION') {
     updatePrediction(data.data);
+  } else if (data && data.type === 'SET_AIRCRAFT_RADIUS') {
+    setAircraftRadius(data.radiusMeters);
+  } else if (data && data.type === 'SET_STADIA_KEY') {
+    console.log('Map received new Stadia key'); //debugging
+    if (data.key && data.key.length > 0) {
+      stadiaApiKey = data.key;
+    } else {
+      // no user key -> revert to env default
+      stadiaApiKey = envStadiaKey || '';
+    }
+    updateStadiaLayer();
   }
 }
 
@@ -223,6 +262,31 @@ function updatePrediction(predictionData) {
   if (descentLine) predictionLayer.removeLayer(descentLine);
   if (burstMarker) predictionLayer.removeLayer(burstMarker);
   if (landingMarker) predictionLayer.removeLayer(landingMarker);
+  
+  //Helper function to format timestamp
+  function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  //Helper to format remaining time (seconds) into human readable string
+  function formatRemaining(targetTs) {
+    if (!targetTs || targetTs === 0) return '';
+    const now = Math.floor(Date.now() / 1000);
+    let delta = Math.round(targetTs - now);
+    const sign = delta < 0 ? -1 : 1;
+    delta = Math.abs(delta);
+    const hrs = Math.floor(delta / 3600);
+    const mins = Math.floor((delta % 3600) / 60);
+    const secs = delta % 60;
+    const parts = [];
+    if (hrs > 0) parts.push(`${hrs}h`);
+    if (mins > 0) parts.push(`${mins}m`);
+    parts.push(`${secs}s`);
+    const text = parts.join(' ');
+    return sign >= 0 ? `in ${text}` : `${text} ago`;
+  }
   
   // Draw ascent line (blue)
   if (predictionData.ascent && predictionData.ascent.length > 0) {
@@ -248,7 +312,7 @@ function updatePrediction(predictionData) {
     });
     descentLine.bindPopup('<b>Predicted Descent Path</b>');
     descentLine.addTo(predictionLayer);
-  }
+  }formatRemaining
   
   // Add burst marker (circle)
   if (predictionData.burst) {
@@ -260,8 +324,11 @@ function updatePrediction(predictionData) {
     });
     
     burstMarker = L.marker([predictionData.burst.lat, predictionData.burst.lon], { icon: burstIcon });
+    const burstTime = formatTime(predictionData.burst.time);
+    const burstRemaining = formatRemaining(predictionData.burst.time);
     burstMarker.bindPopup(`
       <b>Predicted Burst</b><br>
+      Time: ${burstTime} ${burstRemaining ? `(${burstRemaining})` : ''}<br>
       Lat: ${predictionData.burst.lat.toFixed(4)}<br>
       Lon: ${predictionData.burst.lon.toFixed(4)}<br>
       Alt: ${predictionData.burst.alt.toFixed(1)}m
@@ -279,8 +346,11 @@ function updatePrediction(predictionData) {
     });
     
     landingMarker = L.marker([predictionData.landing.lat, predictionData.landing.lon], { icon: landingIcon });
+    const landingTime = formatTime(predictionData.landing.time);
+    const landingRemaining = formatRemaining(predictionData.landing.time);
     landingMarker.bindPopup(`
       <b>Predicted Landing</b><br>
+      Time: ${landingTime} ${landingRemaining ? `(${landingRemaining})` : ''}<br>
       Lat: ${predictionData.landing.lat.toFixed(4)}<br>
       Lon: ${predictionData.landing.lon.toFixed(4)}<br>
       Alt: ${predictionData.landing.alt.toFixed(1)}m

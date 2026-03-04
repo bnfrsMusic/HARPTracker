@@ -319,7 +319,7 @@ button {
 
 /* Altitude and Prediction boxes */
 
-.altitude-box, .predictions-box {
+.altitude-box, .quickcontrols-box {
     background: var(--panel-bg);
     border: 3px solid;
     border-color: var(--border-color) !important;
@@ -346,7 +346,7 @@ button {
     min-height: 0;
 }
 
-.predictions-box { height: 12.5rem;}
+.quickcontrols-box { height: 12.5rem;}
     
 /* Panel stuff */
 
@@ -590,12 +590,33 @@ button:hover {
 .panel label span { flex: 0 0 auto; }
 .panel label input, .panel label select { flex: 1 1 auto; max-width: 60%; }
 
+/* Make the small Quick Controls inputs match panel inputs */
+.quickcontrols-box label { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.quickcontrols-box label span { flex: 0 0 auto; }
+.quickcontrols-box label input, .quickcontrols-box label select { flex: 1 1 auto; max-width: 60%; }
+
+/* disable text selection and right-click for non-text UI*/
+html, body, .map-frame, .panel, .quickcontrols-box, .altitude-box, .side-right, .side-tab, .panel-contents {
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    user-select: none;
+}
+
+/* re-enable selection for form controls so inputs remain usable */
+input, textarea, select, button, label input, .dropdown input {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
 /* when panel is open, it should overlay side-right area; ensure it sits above */
 .panel-contents { box-sizing: border-box; }
 
 
 /* glassy effect by blurring bg of the drop shadow elements */
-.map-frame, .altitude-box, .predictions-box, .side-tab, .panel-contents{
+.map-frame, .altitude-box, .quickcontrols-box, .side-tab, .panel-contents{
     box-shadow: var(--blur);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur); /* Safari support */
