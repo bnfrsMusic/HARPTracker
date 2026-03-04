@@ -20,6 +20,32 @@ let stadiaApiKey = '';
 let envStadiaKey = '';
 let darkMode = null; // leaflet layer for Stadia dark tiles
 
+//unit system for display conversion  
+let currentUnits = 'metric';
+const UNIT_CONVERSIONS = {
+  ALTITUDE: {
+    metric: { factor: 1, name: 'm' },
+    imperial: { factor: 3.28084, name: 'ft' }
+  },
+  VELOCITY_HORIZ: {
+    metric: { factor: 1, name: 'm/s' },
+    imperial: { factor: 2.237, name: 'mph' }
+  },
+  VELOCITY_VERT: {
+    metric: { factor: 1, name: 'm/s' },
+    imperial: { factor: 196.85, name: 'ft/min' }
+  }
+};
+
+function convertToDisplay(metricValue, unitType) {
+  if (metricValue === 0 || metricValue === null || metricValue === undefined) return metricValue;
+  return metricValue * UNIT_CONVERSIONS[unitType][currentUnits].factor;
+}
+
+function getUnitLabel(unitType) {
+  return UNIT_CONVERSIONS[unitType][currentUnits].name;
+}
+
 // helper to refresh dark mode layer URL when API key changes
 function updateStadiaLayer() {
   if (!darkMode) return;
@@ -242,6 +268,12 @@ function handleMessage(event) {
     updatePrediction(data.data);
   } else if (data && data.type === 'SET_AIRCRAFT_RADIUS') {
     setAircraftRadius(data.radiusMeters);
+  } else if (data && data.type === 'SET_UNITS') {
+    const newUnits = data.units;
+    if (newUnits && (newUnits === 'metric' || newUnits === 'imperial')) {
+      currentUnits = newUnits;
+      console.log('Map updated to units:', currentUnits);
+    }
   } else if (data && data.type === 'SET_STADIA_KEY') {
     console.log('Map received new Stadia key'); //debugging
     if (data.key && data.key.length > 0) {
@@ -288,6 +320,21 @@ function updatePrediction(predictionData) {
     return sign >= 0 ? `in ${text}` : `${text} ago`;
   }
   
+  //helper to format a prediction point with unit conversion
+  function formatPredictionPoint(point) {
+    const displayAlt = convertToDisplay(point.alt, 'ALTITUDE');
+    const altUnit = getUnitLabel('ALTITUDE');
+    const time = formatTime(point.time);
+    const remaining = formatRemaining(point.time);
+    return `
+      <b>Predicted Point</b><br>
+      Lat: ${point.lat.toFixed(4)}<br>
+      Lon: ${point.lon.toFixed(4)}<br>
+      Alt: ${displayAlt.toFixed(1)}${altUnit}<br>
+      Time: ${time} ${remaining ? `(${remaining})` : ''}
+    `;
+  }
+  
   // Draw ascent line (blue)
   if (predictionData.ascent && predictionData.ascent.length > 0) {
     const ascentPoints = predictionData.ascent.map(p => [p.lat, p.lon]);
@@ -299,6 +346,20 @@ function updatePrediction(predictionData) {
     });
     ascentLine.bindPopup('<b>Predicted Ascent Path</b>');
     ascentLine.addTo(predictionLayer);
+    
+    // Add markers for each ascent point
+    predictionData.ascent.forEach(point => {
+      const marker = L.circleMarker([point.lat, point.lon], {
+        radius: 4,
+        fillColor: '#0066FF',
+        color: '#0033CC',
+        weight: 1,
+        opacity: 0.7,
+        fillOpacity: 0.5
+      });
+      marker.bindPopup(formatPredictionPoint(point));
+      marker.addTo(predictionLayer);
+    });
   }
   
   // Draw descent line (orange)
@@ -312,7 +373,21 @@ function updatePrediction(predictionData) {
     });
     descentLine.bindPopup('<b>Predicted Descent Path</b>');
     descentLine.addTo(predictionLayer);
-  }formatRemaining
+    
+    // Add markers for each descent point
+    predictionData.descent.forEach(point => {
+      const marker = L.circleMarker([point.lat, point.lon], {
+        radius: 4,
+        fillColor: '#FF6600',
+        color: '#CC4400',
+        weight: 1,
+        opacity: 0.7,
+        fillOpacity: 0.5
+      });
+      marker.bindPopup(formatPredictionPoint(point));
+      marker.addTo(predictionLayer);
+    });
+  }
   
   // Add burst marker (circle)
   if (predictionData.burst) {
@@ -326,12 +401,14 @@ function updatePrediction(predictionData) {
     burstMarker = L.marker([predictionData.burst.lat, predictionData.burst.lon], { icon: burstIcon });
     const burstTime = formatTime(predictionData.burst.time);
     const burstRemaining = formatRemaining(predictionData.burst.time);
+    const displayBurstAlt = convertToDisplay(predictionData.burst.alt, 'ALTITUDE');
+    const altUnit = getUnitLabel('ALTITUDE');
     burstMarker.bindPopup(`
       <b>Predicted Burst</b><br>
       Time: ${burstTime} ${burstRemaining ? `(${burstRemaining})` : ''}<br>
       Lat: ${predictionData.burst.lat.toFixed(4)}<br>
       Lon: ${predictionData.burst.lon.toFixed(4)}<br>
-      Alt: ${predictionData.burst.alt.toFixed(1)}m
+      Alt: ${displayBurstAlt.toFixed(1)}${altUnit}
     `);
     burstMarker.addTo(predictionLayer);
   }
@@ -348,12 +425,14 @@ function updatePrediction(predictionData) {
     landingMarker = L.marker([predictionData.landing.lat, predictionData.landing.lon], { icon: landingIcon });
     const landingTime = formatTime(predictionData.landing.time);
     const landingRemaining = formatRemaining(predictionData.landing.time);
+    const displayLandingAlt = convertToDisplay(predictionData.landing.alt, 'ALTITUDE');
+    const altUnit = getUnitLabel('ALTITUDE');
     landingMarker.bindPopup(`
       <b>Predicted Landing</b><br>
       Time: ${landingTime} ${landingRemaining ? `(${landingRemaining})` : ''}<br>
       Lat: ${predictionData.landing.lat.toFixed(4)}<br>
       Lon: ${predictionData.landing.lon.toFixed(4)}<br>
-      Alt: ${predictionData.landing.alt.toFixed(1)}m
+      Alt: ${displayLandingAlt.toFixed(1)}${altUnit}
     `);
     landingMarker.addTo(predictionLayer);
   }
@@ -396,6 +475,14 @@ function updateMapPosition(lat, lng, alt, horiz_vel = 0, vert_vel = 0) {
   
   console.log('Updating map with velocities - H:', horizVel, 'V:', vertVel);
 
+  //convert values for display
+  const displayAlt = convertToDisplay(alt, 'ALTITUDE');
+  const displayHorizVel = convertToDisplay(horizVel, 'VELOCITY_HORIZ');
+  const displayVertVel = convertToDisplay(vertVel, 'VELOCITY_VERT');
+  const altUnit = getUnitLabel('ALTITUDE');
+  const horizUnit = getUnitLabel('VELOCITY_HORIZ');
+  const vertUnit = getUnitLabel('VELOCITY_VERT');
+
   if (lat !== lastLat || lng !== lastLng) {
     const gMapsUrl = getGmapsLink(lat, lng);
     marker.setLatLng([lat, lng]);
@@ -404,9 +491,9 @@ function updateMapPosition(lat, lng, alt, horiz_vel = 0, vert_vel = 0) {
           <b>Balloon Position</b><br>
           Lat: ${lat.toFixed(4)}<br>
           Lng: ${lng.toFixed(4)}<br>
-          Alt: ${alt.toFixed(1)}m<br>
-          H Vel: ${horizVel.toFixed(2)} m/s<br>
-          V Vel: ${vertVel.toFixed(2)} m/s<br>
+          Alt: ${displayAlt.toFixed(1)}${altUnit}<br>
+          H Vel: ${displayHorizVel.toFixed(2)} ${horizUnit}<br>
+          V Vel: ${displayVertVel.toFixed(2)} ${vertUnit}<br>
           <hr>
           <a href="${gMapsUrl}" target="_blank" style="color: #4285F4; font-weight: bold; text-decoration: none;">
             📍 Open in GMaps
@@ -426,9 +513,9 @@ function updateMapPosition(lat, lng, alt, horiz_vel = 0, vert_vel = 0) {
           <b>Balloon Position</b><br>
           Lat: ${lat.toFixed(4)}<br>
           Lng: ${lng.toFixed(4)}<br>
-          Alt: ${alt.toFixed(1)}m<br>
-          H Vel: ${horizVel.toFixed(2)} m/s<br>
-          V Vel: ${vertVel.toFixed(2)} m/s<br>
+          Alt: ${displayAlt.toFixed(1)}${altUnit}<br>
+          H Vel: ${displayHorizVel.toFixed(2)} ${horizUnit}<br>
+          V Vel: ${displayVertVel.toFixed(2)} ${vertUnit}<br>
           <hr>
           <a href="${gMapsUrl}" target="_blank" style="color: #4285F4; font-weight: bold; text-decoration: none;">
             📍 Open in GMaps

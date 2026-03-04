@@ -36,13 +36,20 @@
     <script>
         const ctx = document.getElementById('altChart').getContext('2d');
         
+        // Unit system state
+        let currentUnits = 'metric';
+        const ALTITUDE_CONVERSION = {
+            metric: { factor: 1, name: 'm' },
+            imperial: { factor: 3.28084, name: 'ft' }
+        };
+        
         const chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: [], // Time values
                 datasets: [{
                     label: 'Altitude (m)',
-                    data: [], // Altitude values
+                    data: [], // Altitude values (stored in metric)
                     borderColor: '#3498db',
                     backgroundColor: 'rgba(52, 152, 219, 0.2)',
                     fill: true,
@@ -67,12 +74,36 @@
             }
         });
         
+        // Function to update the chart label for units
+        function updateChartLabel() {
+            const unit = ALTITUDE_CONVERSION[currentUnits];
+            chart.data.datasets[0].label = `Altitude (${unit.name})`;
+            
+            // Convert all existing data points to display units
+            const metricData = chart.data.datasets[0].data.map(val => {
+                if (typeof val === 'number') {
+                    return val * unit.factor;
+                }
+                return val;
+            });
+            
+            chart.data.datasets[0].data = metricData;
+            chart.update();
+        }
+        
         // Function to add data
         function addDataPoint(time, alt) {
             const exists = chart.data.labels.includes(time);
             if (!exists) {
+                // Store always in metric internally
+                const metricAlt = typeof alt === 'number' ? alt : parseFloat(alt);
                 chart.data.labels.push(time);
-                chart.data.datasets[0].data.push(alt);
+                
+                // Display in current unit
+                const unit = ALTITUDE_CONVERSION[currentUnits];
+                const displayAlt = metricAlt * unit.factor;
+                
+                chart.data.datasets[0].data.push(displayAlt);
                 chart.update();
             } else {
                 console.warn(`Point at time ${time} already exists. Skipping.`);
@@ -83,6 +114,12 @@
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'ADD_DATA') {
                 addDataPoint(event.data.time, event.data.alt);
+            } else if (event.data && event.data.type === 'SET_UNITS') {
+                const newUnits = event.data.units;
+                if (newUnits !== currentUnits) {
+                    currentUnits = newUnits;
+                    updateChartLabel();
+                }
             }
         });
     </script>

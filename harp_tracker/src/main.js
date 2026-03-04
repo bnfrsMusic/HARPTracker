@@ -5,6 +5,96 @@ import { setCompassAngle, createCompass } from './compass.js';
 window.updateInfo = updateInfo;
 const { invoke } = window.__TAURI__.core;
 
+// Automatic unit converstion
+// All internal storage is in metric: meters, kg, m/s; user sees metric or imperial based on what they choose
+let currentUnits = 'metric'; // 'metric' or 'imperial'
+
+// Unit conversion constants
+const UNITS = {
+  ALTITUDE: {
+    metric: { name: 'm', factor: 1 },
+    imperial: { name: 'ft', factor: 3.28084 }
+  },
+  VELOCITY_HORIZ: {
+    metric: { name: 'm/s', factor: 1 },
+    imperial: { name: 'mph', factor: 2.237 }
+  },
+  VELOCITY_VERT: {
+    metric: { name: 'm/s', factor: 1 },
+    imperial: { name: 'ft/min', factor: 196.85 }
+  },
+  MASS: {
+    metric: { name: 'kg', factor: 1 },
+    imperial: { name: 'lbs', factor: 2.20462 }
+  }
+};
+
+//Convert metric value to display units
+function convertToDisplay(metricValue, unitType) {
+  if (metricValue === 0 || metricValue === null || metricValue === undefined) return metricValue;
+  return metricValue * UNITS[unitType][currentUnits].factor;
+}
+
+//Convert display value to metric
+function convertToMetric(displayValue, unitType) {
+  if (displayValue === 0 || displayValue === null || displayValue === undefined) return displayValue;
+  return displayValue / UNITS[unitType][currentUnits].factor;
+}
+
+//Get unit label for display
+function getUnitLabel(unitType) {
+  return UNITS[unitType][currentUnits].name;
+}
+
+//Update all unit labels in the UI
+function updateUnitLabels() {
+  // Prediction parameters
+  const labelPayloadMass = document.getElementById('label-payload-mass');
+  if (labelPayloadMass) labelPayloadMass.textContent = `Payload mass (${getUnitLabel('MASS')})`;
+  
+  const labelBalloonMass = document.getElementById('label-balloon-mass');
+  if (labelBalloonMass) labelBalloonMass.textContent = `Balloon mass (${getUnitLabel('MASS')})`;
+  
+  const labelBurstAlt = document.getElementById('label-burst-alt');
+  if (labelBurstAlt) labelBurstAlt.textContent = `Burst altitude (${getUnitLabel('ALTITUDE')})`;
+  
+  const labelAscentRate = document.getElementById('label-ascent-rate');
+  if (labelAscentRate) labelAscentRate.textContent = `Ascent rate (${getUnitLabel('VELOCITY_VERT')})`;
+  
+  const labelDescentRate = document.getElementById('label-descent-rate');
+  if (labelDescentRate) labelDescentRate.textContent = `Descent rate (${getUnitLabel('VELOCITY_VERT')})`;
+  
+  // Ground station
+  const labelGroundAlt = document.getElementById('label-ground-alt');
+  if (labelGroundAlt) labelGroundAlt.textContent = `Alt (${getUnitLabel('ALTITUDE')})`;
+}
+
+//Update all displayed values after unit change
+function updateDisplayedValuesForUnits() {
+  //update prediction parameters
+  updatePredictionParametersDisplay();
+  
+  //update position display
+  if (lastKnownPosition) {
+    updateMapWithCurrentPosition();
+  }
+  
+  //update ground station display
+  updateGroundStationDisplay();
+}
+
+//Update ground station display with correct units
+function updateGroundStationDisplay() {
+  const groundAltInput = document.querySelector('#ground-alt');
+  if (groundAltInput && groundAltInput.value) {
+    const metricAlt = parseFloat(groundAltInput.dataset.metricValue);
+    if (metricAlt !== undefined && !isNaN(metricAlt)) {
+      const displayAlt = convertToDisplay(metricAlt, 'ALTITUDE');
+      groundAltInput.value = displayAlt.toFixed(0);
+    }
+  }
+}
+
 // DOM elements
 let utcMsg;
 let dateMsg;
@@ -17,6 +107,9 @@ let aprs_butt, iridium_butt;
 let console_text;
 let radioDropdown;
 let radioInput;
+
+// Last known position for unit conversion updates
+let lastKnownPosition = null;
 
 // Track previous values
 let previousIridiumValue = "";
@@ -38,14 +131,14 @@ let predictionIntervalId;
 let lastGeocodeTime = 0;
 const GEOCODE_RATE_LIMIT = 10000; 
 
-// Prediction parameters
+// Prediction parameters (stored internally in metric)
 let predictionParams = {
-  payloadMass: 2.0,
-  balloonMass: 1.5,
-  parachuteDragCoeff: 0.5,
-  burstAltitude: 30000.0,
-  ascentRate: null,
-  descentRate: 5.0
+  payloadMass: 2.0,        // kg
+  balloonMass: 1.5,        // kg
+  parachuteDragCoeff: 0.5, // unitless
+  burstAltitude: 30000.0,  // m
+  ascentRate: null,        // m/s
+  descentRate: 5.0         // m/s
 };
 
 // Initialize app
@@ -170,6 +263,44 @@ async function init() {
     } catch (error) {
       console.error("Error loading filtering method:", error);
     }
+  }
+
+  //Setup units selector
+  const unitsSelector = document.querySelector("#units-selector");
+  if (unitsSelector) {
+    unitsSelector.addEventListener("change", handleUnitsChange);
+    const savedUnits = localStorage.getItem('harp-units') || 'metric';
+    currentUnits = savedUnits;
+    unitsSelector.value = savedUnits;
+    updateUnitLabels();
+  }
+
+  // Setup ground station input saves
+  const groundLatInput = document.querySelector('#ground-lat');
+  const groundLonInput = document.querySelector('#ground-lon');
+  const groundAltInput = document.querySelector('#ground-alt');
+  
+  if (groundLatInput) {
+    groundLatInput.addEventListener('blur', () => {
+      localStorage.setItem('ground_station_lat', groundLatInput.value);
+    });
+  }
+  
+  if (groundLonInput) {
+    groundLonInput.addEventListener('blur', () => {
+      localStorage.setItem('ground_station_lon', groundLonInput.value);
+    });
+  }
+  
+  if (groundAltInput) {
+    groundAltInput.addEventListener('blur', () => {
+      const displayValue = parseFloat(groundAltInput.value);
+      if (!isNaN(displayValue)) {
+        const metricValue = convertToMetric(displayValue, 'ALTITUDE');
+        localStorage.setItem('ground_station_alt', metricValue.toString());
+        groundAltInput.dataset.metricValue = metricValue;
+      }
+    });
   }
 
   // Setup aircraft radius control
@@ -329,6 +460,11 @@ async function init() {
   await updateActiveStatus();
   await updateConnectedClients();
   
+  // Send current units to the altitude graph iframe
+  setTimeout(() => {
+    sendUnitsToAltitudeGraph();
+  }, 500);
+  
   // Start timers
   utcIntervalId = setInterval(updateUtc, 100);
   trackerIntervalId = setInterval(updateTracker, 15000);
@@ -340,27 +476,29 @@ async function init() {
 
 // Setup prediction controls
 function setupPredictionControls() {
-  // Get prediction panel inputs
-  const payloadMassInput = document.querySelector('#predictions .payload-params label:nth-child(1) input');
-  const balloonMassInput = document.querySelector('#predictions .payload-params label:nth-child(2) input');
-  const parachuteDragInput = document.querySelector('#predictions .payload-params label:nth-child(3) input');
+  updatePredictionParametersDisplay();
   
-  // Set default values
-  if (payloadMassInput) payloadMassInput.value = predictionParams.payloadMass;
-  if (balloonMassInput) balloonMassInput.value = predictionParams.balloonMass;
-  if (parachuteDragInput) parachuteDragInput.value = predictionParams.parachuteDragCoeff;
+  // Get prediction panel inputs
+  const payloadMassInput = document.querySelector('#param-payload-mass');
+  const balloonMassInput = document.querySelector('#param-balloon-mass');
+  const parachuteDragInput = document.querySelector('#param-parachute-drag');
+  const burstAltInput = document.querySelector('#param-burst-alt');
+  const ascentRateInput = document.querySelector('#param-ascent-rate');
+  const descentRateInput = document.querySelector('#param-descent-rate');
   
   // Add event listeners for parameter changes
   if (payloadMassInput) {
     payloadMassInput.addEventListener('change', (e) => {
-      predictionParams.payloadMass = parseFloat(e.target.value) || 2.0;
+      const displayValue = parseFloat(e.target.value) || 2.0;
+      predictionParams.payloadMass = convertToMetric(displayValue, 'MASS');
       updatePredictionParams();
     });
   }
   
   if (balloonMassInput) {
     balloonMassInput.addEventListener('change', (e) => {
-      predictionParams.balloonMass = parseFloat(e.target.value) || 1.5;
+      const displayValue = parseFloat(e.target.value) || 1.5;
+      predictionParams.balloonMass = convertToMetric(displayValue, 'MASS');
       updatePredictionParams();
     });
   }
@@ -372,8 +510,33 @@ function setupPredictionControls() {
     });
   }
   
+  if (burstAltInput) {
+    burstAltInput.addEventListener('change', (e) => {
+      const displayValue = parseFloat(e.target.value) || 30000.0;
+      predictionParams.burstAltitude = convertToMetric(displayValue, 'ALTITUDE');
+      updatePredictionParams();
+    });
+  }
+  
+  if (ascentRateInput) {
+    ascentRateInput.addEventListener('change', (e) => {
+      const value = e.target.value.trim();
+      const displayValue = value === '' ? null : parseFloat(value);
+      predictionParams.ascentRate = displayValue === null ? null : convertToMetric(displayValue, 'VELOCITY_VERT');
+      updatePredictionParams();
+    });
+  }
+  
+  if (descentRateInput) {
+    descentRateInput.addEventListener('change', (e) => {
+      const displayValue = parseFloat(e.target.value) || 5.0;
+      predictionParams.descentRate = convertToMetric(displayValue, 'VELOCITY_VERT');
+      updatePredictionParams();
+    });
+  }
+  
   // Get run prediction button
-  const runBtn = document.querySelector('#predictions .run-controls button:first-child');
+  const runBtn = document.querySelector('#run-prediction-btn');
   if (runBtn) {
     runBtn.addEventListener('click', async () => {
       await runPrediction();
@@ -381,7 +544,7 @@ function setupPredictionControls() {
   }
   
   // Algorithm selector
-  const algoSelect = document.querySelector('#predictions label select');
+  const algoSelect = document.querySelector('#prediction-algo');
   if (algoSelect) {
     algoSelect.addEventListener('change', async (e) => {
       const algorithm = e.target.value;
@@ -393,6 +556,21 @@ function setupPredictionControls() {
       }
     });
   }
+}
+
+//update the prediction parameters to show correct units and values
+function updatePredictionParametersDisplay() {
+  const payloadMassInput = document.querySelector('#param-payload-mass');
+  const balloonMassInput = document.querySelector('#param-balloon-mass');
+  const burstAltInput = document.querySelector('#param-burst-alt');
+  const ascentRateInput = document.querySelector('#param-ascent-rate');
+  const descentRateInput = document.querySelector('#param-descent-rate');
+  
+  if (payloadMassInput) payloadMassInput.value = (convertToDisplay(predictionParams.payloadMass, 'MASS')).toFixed(1);
+  if (balloonMassInput) balloonMassInput.value = (convertToDisplay(predictionParams.balloonMass, 'MASS')).toFixed(1);
+  if (burstAltInput) burstAltInput.value = (convertToDisplay(predictionParams.burstAltitude, 'ALTITUDE')).toFixed(0);
+  if (ascentRateInput) ascentRateInput.value = predictionParams.ascentRate === null ? '' : (convertToDisplay(predictionParams.ascentRate, 'VELOCITY_VERT')).toFixed(1);
+  if (descentRateInput) descentRateInput.value = (convertToDisplay(predictionParams.descentRate, 'VELOCITY_VERT')).toFixed(1);
 }
 
 // Update prediction parameters in backend
@@ -468,6 +646,25 @@ async function loadSavedValues() {
     if (aprsfiInput) aprsfiInput.value = storedAprsKey;
     if (storedAprsKey) {
       try { await invoke('set_aprsfi_api_key', { key: storedAprsKey }); } catch(e){}
+    }
+    
+    // load ground station values
+    const groundLat = localStorage.getItem('ground_station_lat') || '';
+    const groundLon = localStorage.getItem('ground_station_lon') || '';
+    const groundAltMetric = localStorage.getItem('ground_station_alt') || '';
+    
+    const groundLatInput = document.querySelector('#ground-lat');
+    const groundLonInput = document.querySelector('#ground-lon');
+    const groundAltInput = document.querySelector('#ground-alt');
+    
+    if (groundLatInput) groundLatInput.value = groundLat;
+    if (groundLonInput) groundLonInput.value = groundLon;
+    if (groundAltInput && groundAltMetric) {
+      const metricAlt = parseFloat(groundAltMetric);
+      if (!isNaN(metricAlt)) {
+        groundAltInput.dataset.metricValue = metricAlt;
+        groundAltInput.value = convertToDisplay(metricAlt, 'ALTITUDE').toFixed(0);
+      }
     }
   } catch (error) {
     if (console_text) console_text.textContent = "Failed to load saved values:" + error;
@@ -695,6 +892,36 @@ async function handleFilteringMethodChange(event) {
   }
 }
 
+// Handle units selector change
+function handleUnitsChange(event) {
+  const newUnits = event.target.value;
+  currentUnits = newUnits;
+  localStorage.setItem('harp-units', newUnits);
+  updateUnitLabels();
+  updateDisplayedValuesForUnits();
+  
+  //send unit change message to map iframe
+  const mapIframe = document.querySelector('.screen');
+  if (mapIframe && mapIframe.contentWindow) {
+    mapIframe.contentWindow.postMessage({
+      type: 'SET_UNITS',
+      units: newUnits
+    }, '*');
+  }
+  
+  //send unit change message to altitude graph iframe
+  const altGraphIframe = document.querySelector('#altitude-graph');
+  if (altGraphIframe && altGraphIframe.contentWindow) {
+    altGraphIframe.contentWindow.postMessage({
+      type: 'SET_UNITS',
+      units: newUnits
+    }, '*');
+  }
+  //send to display console
+  if (console_text) console_text.textContent = `Units changed to ${newUnits === 'metric' ? 'Metric' : 'Imperial'}`;
+  runPrediction();//run predictions again so that it updates the units
+}
+
 // Handle APRS input changes
 async function handleAprsUpdate(newValue) {
   try {
@@ -733,12 +960,25 @@ async function getPosition() {
     const numAlt = Number(altitude);
     const numHoriz = Number(horiz_vel);
     const numVert = Number(vert_vel);
+    
+    // Store for later unit conversions
+    lastKnownPosition = {
+      lat: numLat,
+      lon: numLong,
+      alt: numAlt,
+      horiz_vel: numHoriz,
+      vert_vel: numVert
+    };
 
     if (lat && !Number.isNaN(numLat)) lat.textContent = numLat + ",";
     if (long && !Number.isNaN(numLong)) long.textContent = numLong;
-    if (alt && !Number.isNaN(numAlt)) alt.textContent = numAlt + "m";
+    if (alt && !Number.isNaN(numAlt)){
+      const displayAlt = convertToDisplay(numAlt, 'ALTITUDE');
+      const altUnit = getUnitLabel('ALTITUDE');
+      alt.textContent = displayAlt.toFixed(0) + altUnit;
+    }
 
-    // Update map
+    // Update map with metric values for internal use
     if (!Number.isNaN(numLat) && !Number.isNaN(numLong) && !Number.isNaN(numAlt) && numAlt != 0.0)  {
       updateMap(numLat, numLong, numAlt, numHoriz, numVert); 
 
@@ -763,7 +1003,7 @@ async function getPosition() {
           //update compass          
           try { await updateCompass(numLat, numLong); } catch(e){}
           
-          // update alt graph with the utc timestamp
+          // update alt graph with the metric altitude (graph handles its own conversion)
           try { updateAltitudeGraph(utcTimeStr, numAlt); } catch(e){}
         }
         previousLat = Number.isFinite(numLat) ? numLat : previousLat;
@@ -981,6 +1221,12 @@ function initMapIframe() {
     if (event.data && event.data.type === 'MAP_READY') {
       console.log('Map is ready');
       
+      //send current units
+      mapIframe.contentWindow.postMessage({
+        type: 'SET_UNITS',
+        units: currentUnits
+      }, '*');
+      
       // Send current position if we have it
       updateMapWithCurrentPosition();
       
@@ -1057,6 +1303,17 @@ function sendStadiaKeyToMap(key) {
     mapIframe.contentWindow.postMessage({
       type: 'SET_STADIA_KEY',
       key: key || ''
+    }, '*');
+  }
+}
+
+// send current units to the altitude graph iframe
+function sendUnitsToAltitudeGraph() {
+  const altGraphIframe = document.querySelector('#altitude-graph');
+  if (altGraphIframe && altGraphIframe.contentWindow) {
+    altGraphIframe.contentWindow.postMessage({
+      type: 'SET_UNITS',
+      units: currentUnits
     }, '*');
   }
 }
