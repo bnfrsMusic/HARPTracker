@@ -29,47 +29,46 @@ General element customizations
 body {
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
-    background: #f6f6f6;
+    overflow: hidden;
+    background: var(--bg-color);
     font-family: afacad-flux, sans-serif;
     min-height: 100vh;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
 }
 
 h1 {
     font-family: orbitron, sans-serif;
-    color: black;
-    font-size: clamp(2rem, 5vw, 5rem);
+    color: var(--primary-color);
+    font-size: clamp(2.5rem, 5.5vw, 6.5rem);
     text-align: center;
     font-weight: normal;
-    margin: -2rem 0 2rem;
-    text-shadow: 0px 5px #4e5a94;
+    margin: 0;
 }
 
 h2 {
+    color: var(--text-main);
+    border-bottom: 2px solid var(--primary-color);
     font-family: afacad-flux, sans-serif;
-    color: black;
     text-align: center;
-    font-size: clamp(1.7rem, 2vw, 2.2rem);
+    font-size: clamp(1.5rem, 2vw, 2.0rem);
     margin: 0.5em 0;
-    border-bottom: 2px solid #4e5a94;
 }
 
 h3 {
+    color: var(--text-main);
+    border-bottom: 2px solid var(--primary-color);
     font-family: afacad-flux, sans-serif;
     font-size: clamp(1rem, 1.5vw, 1.5rem);
-    color: black;
     font-weight: bold;
     margin: 0.5em 0;
-    border-bottom: 1px solid #4e5a94;
 }
 
 p {
     font-family: afacad-flux, sans-serif;
     font-size: clamp(1rem, 1.3vw, 1.3rem);
-    color: #4e5a94;
+    color: var(--accent-color);
     margin: 0.5em 0;
 }
 
@@ -83,26 +82,594 @@ input[type="text"]
     font-family: afacad-flux;
     font-size: 1em;
     width: 70%;
-    border: 1px solid black;
+    border: 1px solid var(--border-color);
 }
 
 select
 {
     font-family: afacad-flux;
-    /* width: 50%; */
     padding: 0.5em 0;
     font-size: 1em;
-    border: 1px solid black;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
 }
 
 button {
     font-family: afacad-flux, sans-serif;
     font-size: 1em;
-    border: 1px solid black;
     font-weight: normal;
     transition: background-color 0.3s, color 0.3s;
-    background-color: white;
+    background-color: var(--butt-drop-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
     cursor: pointer;
+}
+
+/* Variables */
+:root {
+    /* Branding & Logic Colors */
+    --primary-color: #4e5a94;
+    --accent-color: #4e5a94;
+    --danger: #c0392b;
+    --ok: #2ecc71;
+    --pending: #f1c40f;
+    
+    /* Surface Colors */
+    --bg-color: #f6f6f6;
+    --panel-bg: #ffffff;
+    --muted: #e9e9ef;
+    --map-frame-bg: #cfe8ef;
+    --tab-bg: rgba(255, 255, 255, 0.7);
+    --butt-drop-bg: #ffffff;
+    
+    /* Text & Lines */
+    --text-main: #000000;
+    --panel-text-color: #333333;
+    --console-text-color: #222222;
+    --border-color: #000000;
+    --scrollbar-color: rgba(0, 0, 0, 0.1);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    
+    /* Shadows & Effects */
+    --blur-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --box-shadow-light: rgba(0, 0, 0, 0.3);
+    --box-shadow-medium: rgba(0, 0, 0, 0.18);
+    --box-shadow-heavy: rgba(0, 0, 0, 0.38);
+    
+    /* Focus & Hover States */
+    --focus-ring: rgba(78, 90, 148, 0.1);
+    --primary-border-alpha: rgba(78, 90, 148, 0.2);
+    
+    /* Connection Entry */
+    --connection-entry-bg: rgba(233, 233, 239, 0.5);
+    --connection-entry-border: rgba(0, 0, 0, 0.05);
+    
+    /* Console */
+    --console-bg: rgba(246, 246, 246, 0.7);
+    
+    /* Placeholder */
+    --placeholder-color: #666666;
+    
+    /* Active Tab Text */
+    --active-tab-text: #ffffff;
+
+    /* Compass Tick Color */
+    --compass-tick-color:  var(--primary-color);
+
+    /* Layout (Constants) */
+    --header-height: 6rem; 
+    --panel-width: 30rem; 
+    --side-tab-width: 6.5rem;
+    --gutter: 1rem;
+    --map-height: clamp(30rem, 70vh, 50rem);
+    --compass-size: clamp(4rem, 8vw, 8.75rem);
+    --panel-footer-height: 3.5rem;
+    --blur: var(--blur-shadow);
+    --glass-blur: blur(8px);
+}
+
+[data-theme="dark"] {
+    /* Branding & Logic Colors */
+    --primary-color: #7a89d1;
+    --accent-color: #7a89d1;
+    --danger: #e74c3c;
+    --ok: #2ecc71;
+    --pending: #f1c40f;
+    
+    /* Surfaces */
+    --bg-color: #121212;
+    --panel-bg: #1e1e1e;
+    --muted: #2d2d2d;
+    --map-frame-bg: #1a262b;
+    --tab-bg: rgba(30, 30, 30, 0.8);
+    --butt-drop-bg: #333333;
+    
+    /* Text & Lines */
+    --text-main: #e0e0e0;
+    --panel-text-color: #cccccc;
+    --console-text-color: #ffffff;
+    --border-color: #444444;
+    --scrollbar-color: rgba(255, 255, 255, 0.2);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    
+    /* Shadows & Effects */
+    --blur-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    --box-shadow-light: rgba(0, 0, 0, 0.5);
+    --box-shadow-medium: rgba(0, 0, 0, 0.4);
+    --box-shadow-heavy: rgba(0, 0, 0, 0.6);
+    
+    /* Focus & Hover States */
+    --focus-ring: rgba(122, 137, 209, 0.2);
+    --primary-border-alpha: rgba(122, 137, 209, 0.3);
+    
+    /* Connection Entry */
+    --connection-entry-bg: rgba(45, 45, 45, 0.5);
+    --connection-entry-border: rgba(255, 255, 255, 0.05);
+    
+    /* Console */
+    --console-bg: rgba(30, 30, 30, 0.8);
+    
+    /* Placeholder */
+    --placeholder-color: #888888;
+
+    --compass-tick-color:  var(var(--active-tab-text))
+    
+    /* Active Tab Text */
+    --active-tab-text: #ffffff;
+}
+
+/* Smooth Transition */
+*, *::before, *::after {
+    transition: background-color 0.3s ease, 
+                color 0.3s ease, 
+                border-color 0.3s ease, 
+                box-shadow 0.3s ease, 
+                backdrop-filter 0.3s ease;
+}
+
+.preload * {
+    transition: none !important;
+}
+
+
+
+/* App grid */
+.app-container {
+    width: 100%;
+    max-width: 1700px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.main-content {
+    width: 100%;
+    max-width: 1500px;
+    margin: auto auto;
+    display: grid;
+    grid-template-columns: 1fr var(--panel-width);
+    gap: 1.75rem; /* ~28px */
+    align-items: start;
+    padding: 0.75rem 0;
+}
+
+.app-header {
+    text-align: center;
+    height: calc(var(--header-height) + 5rem);
+    display:flex;
+    margin-top: auto;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+}
+
+.header-left { position: absolute; left: 1.5rem; top: 50%; transform: translateY(-50%); display:flex; align-items:center; }
+.header-center { text-align: center; }
+
+.main-area {
+    display: flex;
+    gap: 1rem;
+}
+
+/* Map Stuff */
+
+.map-section {
+    display:flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.map-frame {
+    background: var(--panel-bg);
+    border: 3px solid;
+    border-color: var(--border-color) !important;
+    height: var(--map-height);
+    box-shadow: var(--blur);
+    display: block;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.map-frame .screen {
+    width: 100%;
+    height: calc(var(--map-height) - var(--panel-footer-height));
+    border: none;
+    display: block;
+    background: var(--map-frame-bg);
+}
+
+.map-footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--muted);
+    border-top: 3px solid;
+    border-color: var(--border-color) !important;
+    display: flex;
+    justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.95rem;
+}
+
+/* console stuff */
+
+.console-row { margin-top: 0.6rem; }
+.console-row #console-text { margin: 0; color: var(--console-text-color); font-size: 1rem; }
+
+/* Altitude and Prediction boxes */
+
+.altitude-box, .quickcontrols-box {
+    background: var(--panel-bg);
+    border: 3px solid;
+    border-color: var(--border-color) !important;
+    padding: 0.8rem;
+    box-shadow: 0 0.125rem 0.625rem var(--box-shadow-light);
+}
+
+.altitude-box { 
+    height: 30rem; 
+    box-shadow: var(--blur);
+    display: flex;
+    flex-direction: column;
+}
+
+.altitude-box h2 {
+    margin: 0 0 0.5rem 0;
+    flex-shrink: 0;
+}
+
+.altitude-box iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    min-height: 0;
+}
+
+.quickcontrols-box { height: 12.5rem;}
+    
+/* Panel stuff */
+
+.right-panels {
+    display:flex;
+    flex-direction: column;
+    gap: 1.125rem; /* ~18px */
+    width: clamp(var(--panel-width) - 5rem, 40vh , var(--panel-width));
+}
+
+
+.panels {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+}
+
+.side-tabs {
+    position: fixed;
+    right: 0;
+    top: var(--header-height);
+    height: calc(100vh - (var(--header-height) + 1.25rem));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    z-index: 40;
+    padding-right: 0.375rem;
+}
+
+/* shift tabs when panel is open */
+body.panel-open .side-tabs { right: var(--panel-width); }
+
+.side-tab {
+    width: var(--side-tab-width);
+    height: 10.5rem;
+    background: var(--tab-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border) !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--blur);
+    transition: all 0.3s ease;
+}
+
+.side-tab span {
+    display: block;
+    font-size: x-large;
+    text-orientation: mixed;
+    transform: rotate(-90deg);
+    white-space: nowrap; 
+    text-align: center;
+    width: max-content;
+}
+.side-tab.active {
+    background: var(--primary-color);
+    color: var(--active-tab-text);
+    border-color: var(--primary-color) !important;
+}
+
+.side-tabs { border-top: none; }
+
+/* More panel stuff (mostly adding the glassy look) */
+
+.panel-contents {
+    position: fixed;
+    right: 0;
+    top: calc(var(--header-height) - 6rem);
+    height: calc(125vh - (var(--header-height) + 1.25rem));
+    width: var(--panel-width);
+    transform: translateX(var(--panel-width));
+    transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--tab-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-left: 1px solid var(--glass-border) !important;
+    box-shadow: var(--blur);
+    padding: 1.5rem;
+    z-index: 120;
+    display: flex;
+    flex-direction: column;
+}
+.panel-contents.open { transform: translateX(0); }
+
+.panel { display: none; overflow:auto; }
+.panel.active { display: block; }
+
+
+/* Panel Headers and Labels */
+.panel h2, .panel h3 {
+    text-align: left;
+    border-bottom: 1px solid var(--primary-border-alpha);
+    padding-bottom: 0.5rem;
+    margin-top: 1.5rem;
+}
+
+.panel label {
+    margin: 1rem 0;
+    font-weight: 500;
+    color: var(--panel-text-color);
+}
+
+/* Ensure the scrollbar doesn't ruin the glass aesthetic */
+.panel::-webkit-scrollbar {
+    width: 6px;
+}
+.panel::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-color);
+    border-radius: 10px;
+}
+
+
+/* Connections stuff */
+
+.connections-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+
+/* Connection List Entries (The boxes inside the panels) */
+.connection-entry {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid var(--connection-entry-border);
+    background: var(--connection-entry-bg);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+/* Inputs, Selects, and Buttons */
+input[type="text"], 
+select, 
+button {
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 0.5rem;
+    background: var(--butt-drop-bg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    color: var(--text-main);
+}
+
+input[type="text"]:focus, 
+select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+button:hover {
+    background-color: var(--primary-color);
+    color: var(--active-tab-text);
+    border-color: var(--primary-color);
+}
+
+/* Status Indicators base style */
+.conn-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    /* Default/Disconnected state */
+    background-color: var(--danger); 
+    box-shadow: 0 0 8px rgba(192, 57, 43, 0.4); 
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.conn-indicator.ok { 
+    background-color: var(--ok) !important; 
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+}
+
+/* turns yellow when 'pending' */
+.conn-indicator.pending { 
+    background-color: var(--pending) !important; 
+    box-shadow: 0 0 8px rgba(241, 196, 15, 0.5);
+}
+
+/* animation for pending connections */
+@keyframes pulse-status {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.connection-entry select, .connection-entry input { padding: 0.25rem; font-family: afacad-flux; }
+
+.connection-entry .remove { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; }
+
+.compass-area { display:flex; justify-content:center; padding: 1rem; }
+
+.compass { width: 4.5rem; height: 4.5rem; filter: drop-shadow(0 0.125rem 0.3rem var(--box-shadow-heavy));}
+
+
+/* compass stuff */
+
+#compass-top-left .compass { width: var(--compass-size); height: var(--compass-size); }
+#compass-top-left {
+    width: var(--compass-size);
+    height: var(--compass-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8rem; 
+    
+    /* Matching the glass style from earlier */
+    background: var(--panel-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: 50%; 
+    box-shadow: var(--blur);
+    border: 1px solid var(--glass-border) !important;
+    padding: 0.5rem; 
+}
+/* make compass letters and ticks more prominent */
+#compass-top-left svg { display:block;}
+#compass-top-left text {
+    font-family: afacad-flux, sans-serif;
+    fill: var(--primary-color); 
+    font-weight: bold;
+    font-size: 1.2rem;
+    
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+/* Joystick (To Be Implemented) */
+
+.joystick-area { display:flex; flex-direction:column; gap:0.5rem; }
+.joystick { width: 10rem; height: 10rem; border-radius: 0.5rem; }
+
+/* more panel stuff */
+
+.panel label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+.panel label span { flex: 0 0 auto; }
+.panel label input, .panel label select { flex: 1 1 auto; max-width: 60%; }
+
+/* Make the small Quick Controls inputs match panel inputs */
+.quickcontrols-box label { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.quickcontrols-box label span { flex: 0 0 auto; }
+.quickcontrols-box label input, .quickcontrols-box label select { flex: 1 1 auto; max-width: 60%; }
+
+/* disable text selection and right-click for non-text UI*/
+html, body, .map-frame, .panel, .quickcontrols-box, .altitude-box, .side-right, .side-tab, .panel-contents {
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    user-select: none;
+}
+
+/* re-enable selection for form controls so inputs remain usable */
+input, textarea, select, button, label input, .dropdown input {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+/* when panel is open, it should overlay side-right area; ensure it sits above */
+.panel-contents { box-sizing: border-box; }
+
+
+/* glassy effect by blurring bg of the drop shadow elements */
+.map-frame, .altitude-box, .quickcontrols-box, .side-tab, .panel-contents{
+    box-shadow: var(--blur);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur); /* Safari support */
+    border: 1px solid var(--glass-border) !important;
+}
+
+
+@media (max-width: 900px) {
+    .app-container { grid-template-columns: 1fr; }
+    .panels { grid-column: 1 / -1; }
+    .side-right { width: 100%; }
+    .panel-contents { width: 90vw; transform: translateX(90vw); }
+    .panel-contents.open { transform: translateX(0); }
+}
+
+/* drawer overlays the side-right area */
+.panel-contents { z-index: 120; box-shadow: -0.375rem 0 1.125rem var(--box-shadow-medium); }
+.side-right { z-index: 10; }
+
+label { display: block; margin: 0.4rem 0; color: var(--text-main)}
+
+.console-area {
+    position: fixed; 
+    bottom: 2rem;
+    left: 0;
+    width: 100vw;
+    display: flex;
+    justify-content: center; 
+    align-items: center;
+    pointer-events: none; 
+    z-index: 200;
+}
+
+.console-area p, 
+.console-area #console-text {
+    width: auto; 
+    margin: 0;
+    padding: 0.5rem 1.5rem;
+    text-align: center;
+    pointer-events: auto; 
+    
+    /* same glassy effect as earlier */
+    /* Can ya tell I like how it looks? */
+    background: var(--console-bg); 
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--blur);
+}
+
+@media (max-width: 900px) {
+    .app-container { grid-template-columns: 1fr; }
+    .panels { grid-column: 1 / -1; }
+    .side-right { width: 100%; }
 }
 
 /*
@@ -115,7 +682,7 @@ Grid Layout for the main page
         "header header header"               
         "left main right";
     grid-template-rows: auto 1fr auto;
-    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-columns: 0.5fr 2fr 0.5fr;
     gap: 1rem;
     padding: 2rem 1rem 0;
 }
@@ -123,7 +690,7 @@ Grid Layout for the main page
 .top {
     grid-area: header;
     text-align: center;
-    line-height: 3rem;
+    line-height: 5rem;
 }
 
 .left {
@@ -132,8 +699,8 @@ Grid Layout for the main page
 
 .center {
     grid-area: main;
-    border-left: 2px solid #4e5a94;
-    border-right: 2px solid #4e5a94;
+    border-left: 2px solid var(--primary-color);
+    border-right: 2px solid var(--primary-color);
 }
 
 .right {
@@ -146,9 +713,9 @@ Center grid, screen for live tracking information
 .frame-container {
     display: flex;
     flex-direction: column;
-    background-color: white;
-    border: 1px solid black;
-    height: clamp(350px, 40vh, 400px);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    height: clamp(30rem, 40vh, 31.25rem);
     overflow: hidden;
     margin: 0 auto;
     max-width: 90%;
@@ -160,7 +727,7 @@ iframe.screen {
     margin: 0;
     padding: 0;
     border: none;
-    background-color: black;
+    background-color: var(--border-color);
     display: block;
 }
 
@@ -179,7 +746,7 @@ iframe.screen {
 /*
 Left grid, Connectivity setup
 */
-.connectivity_setup {
+.connectivity_setup, .connected_clients_setup {
     justify-content: center;
     align-items: center;
     margin: -8em 0;
@@ -212,9 +779,7 @@ Left grid, Connectivity setup
         }
     }
 
-        /*
-        Flex layout for elements inside the Radio and Client Connectivity Setups
-        */
+
         .dropdown {
             display: flex;
             flex-direction: column;
@@ -225,12 +790,6 @@ Left grid, Connectivity setup
 /*
 Right grid, Connected Clients setup
 */
-.connected_clients_setup {
-    justify-content: center;
-    align-items: center;
-    margin: -8em 0;
-    margin-right: 1rem;
-}
 
 .connected_radio {
     margin: 0 3rem;
@@ -245,6 +804,10 @@ Right grid, Connected Clients setup
     margin-bottom: 1rem;
 }
 
+#aprs_butt, #iridium_butt {
+    display: none;
+}
+
 .cancel-btn {
     margin-left: 0.5rem;
     font-size: 1.2em;
@@ -254,4 +817,14 @@ Right grid, Connected Clients setup
 
 .connected_clients {
     margin: 0 3rem;
+}
+
+/* Misc */
+
+.placeholder {
+    min-height: 6.875rem; /* ~110px */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--placeholder-color);
 }

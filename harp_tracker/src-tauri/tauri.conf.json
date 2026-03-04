@@ -1,7 +1,7 @@
 {
   "productName": "harp_tracker",
   "version": "0.1.0",
-  "identifier": "com.harp_tracker.app",
+  "identifier": "com.harp-tracker.app",
   "build": {
     "frontendDist": "../src"
   },
@@ -9,9 +9,9 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "harp_tracker",
-        "width": 1080,
-        "height": 720
+        "title": "HARP Tracker",
+        "width": 1920,
+        "height": 1080
       }
     ],
     "security": {

@@ -27,7 +27,7 @@ impl Iridium {
             base_url: base_url.to_string(),
             modem: modem.to_string(),
             client: Client::new(),
-            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0},
+            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0, horiz_vel:0.0, vert_vel:0.0},
             vertical_velocity: 0.0,
             ground_speed: 0.0,
 
@@ -66,12 +66,13 @@ impl Iridium {
                         let dte_idx = fields.iter().position(|v| v == "datetime").unwrap();
 
                         //Set the values
-                        self.position_time.lat = latest_entry[lat_idx].as_f64().unwrap();
-                        self.position_time.lon = latest_entry[lon_idx].as_f64().unwrap();
-                        self.position_time.alt = latest_entry[alt_idx].as_f64().unwrap();
-                        self.vertical_velocity = latest_entry[vert_idx].as_f64().unwrap();
-                        self.ground_speed = latest_entry[grnd_idx].as_f64().unwrap();
-                        self.position_time.last_update = latest_entry[dte_idx].as_u64().unwrap();
+                        let lat = latest_entry[lat_idx].as_f64().unwrap_or(0.0);
+                        let lon = latest_entry[lon_idx].as_f64().unwrap_or(0.0);
+                        let alt = latest_entry[alt_idx].as_f64().unwrap_or(0.0);
+                        self.vertical_velocity = latest_entry[vert_idx].as_f64().unwrap_or(0.0);
+                        self.ground_speed = latest_entry[grnd_idx].as_f64().unwrap_or(0.0);
+                        let dte = latest_entry[dte_idx].as_u64().unwrap_or(0);
+                        self.position_time.update(lat, lon, alt, dte, self.ground_speed, self.vertical_velocity);
 
                         let current_time = SystemTime::now()
                             .duration_since(UNIX_EPOCH)

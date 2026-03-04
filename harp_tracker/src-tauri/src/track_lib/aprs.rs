@@ -31,7 +31,7 @@ impl APRS {
             base_url: "https://api.aprs.fi/api".to_string(),
             call_sign: call_sign.to_string(),
             client: Client::new(),
-            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0},
+            position_time: PositionTime {lat:0.0, lon:0.0, alt:0.0, last_update:0, horiz_vel:0.0, vert_vel:0.0},
             vertical_velocity: 0.0,
             ground_speed: 0.0,
             datetime: 0.0,
@@ -65,30 +65,33 @@ impl APRS {
         if let Some(entries) = response["entries"].as_array() {
             if let Some(latest_entry) = entries.first() {
                 // Extract position data
-                self.position_time.lat = latest_entry["lat"].as_str()
+                let lat = latest_entry["lat"].as_str()
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                self.position_time.lon = latest_entry["lng"].as_str()
+                let lon = latest_entry["lng"].as_str()
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                self.position_time.alt = latest_entry["altitude"].as_f64()
+                let alt = latest_entry["altitude"].as_f64()
                     .unwrap_or(0.0);
                 
                 self.ground_speed = latest_entry["speed"].as_f64()
-                    // .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                // We dont have vertical velocity in APRS API (I dont think so anyway)
+                // We dont have vertical velocity in APRS API
                 self.vertical_velocity = 0.0;
                 
                 // Extract time data
                 if let Some(time_str) = latest_entry["lasttime"].as_str() {
                     if let Ok(time) = time_str.parse::<f64>() {
                         self.datetime = time;
-                        self.position_time.last_update = time as u64;
+                        // update position_time with velocities
+                        self.position_time.update(lat, lon, alt, time as u64, self.ground_speed, self.vertical_velocity);
                     }
+                } else {
+                    // fallback update even if time missing
+                    self.position_time.update(lat, lon, alt, 0, self.ground_speed, self.vertical_velocity);
                 }
                 
                 // Extract additional useful info

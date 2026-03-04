@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 
 
 
@@ -11,13 +13,15 @@ alt -> Altitude in meters
 
 last_update -> Unix timestamp of the last update
 */
-#[derive(Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct PositionTime{
     
     pub lat: f64,
     pub lon: f64,
     pub alt: f64,
-    pub last_update: u64
+    pub last_update: u64,
+    pub horiz_vel: f64,
+    pub vert_vel: f64,
     
 }
 
@@ -41,18 +45,20 @@ impl PositionTime {
 
     //------------------------Initializing Functions------------------------
     pub fn new() -> Self {
-        Self {lat:0.0, lon:0.0, alt:0.0, last_update:0}
+        Self {lat:0.0, lon:0.0, alt:0.0, last_update:0, horiz_vel:0.0, vert_vel:0.0}
     }
 
-    pub fn new_with_value(lat:f64,lon:f64,alt:f64,last_update:u64) -> Self {
-        Self {lat, lon, alt, last_update}
+    pub fn new_with_value(lat:f64,lon:f64,alt:f64,last_update:u64,horiz_vel:f64,vert_vel:f64) -> Self {
+        Self {lat, lon, alt, last_update, horiz_vel, vert_vel}
     }
     
-    pub fn update(&mut self, lat:f64, lon:f64, alt: f64, last_update:u64){
+    pub fn update(&mut self, lat:f64, lon:f64, alt: f64, last_update:u64, horiz_vel:f64, vert_vel:f64){
         self.lat = lat;
         self.lon = lon;
         self.alt = alt;
         self.last_update = last_update;
+        self.horiz_vel = horiz_vel;
+        self.vert_vel = vert_vel;
     }
 
 
@@ -81,12 +87,16 @@ impl PositionTime {
             avg_pos_time.update(avg_pos_time.lat + i.lat,
                                 avg_pos_time.lon + i.lon, 
                                 avg_pos_time.alt + i.alt, 
-                                avg_pos_time.last_update + i.last_update);
+                                avg_pos_time.last_update + i.last_update,
+                                avg_pos_time.horiz_vel + i.horiz_vel,
+                                avg_pos_time.vert_vel + i.vert_vel);
         }
         avg_pos_time.update(avg_pos_time.lat/(pos_time.len() as f64) ,
             avg_pos_time.lon/(pos_time.len() as f64),
             avg_pos_time.alt/(pos_time.len() as f64),
-            avg_pos_time.last_update/(pos_time.len() as u64));
+            avg_pos_time.last_update/(pos_time.len() as u64),
+            avg_pos_time.horiz_vel/(pos_time.len() as f64),
+            avg_pos_time.vert_vel/(pos_time.len() as f64));
         avg_pos_time
     }
 
@@ -118,15 +128,41 @@ impl PositionTime {
         }
     }
 
-    pub fn recent(pos_time: Vec<PositionTime>) -> PositionTime{
-        if pos_time.is_empty() {
-            panic!("Cannot get most recent PositionTime");
-        }
+pub fn recent(pos_time: Vec<PositionTime>) -> PositionTime{
+    if pos_time.is_empty() {
+        panic!("Cannot get most recent PositionTime");
+    }
 
-        pos_time
-            .into_iter()
-            .max_by_key(|pt| pt.last_update)
-            .expect("PositionTime Recent Estimation max_by_key failed")
+    // Find the most recent timestamp
+    let most_recent_time = pos_time
+        .iter()
+        .map(|pt| pt.last_update)
+        .max()
+        .expect("PositionTime Recent Estimation max failed");
+
+    // Get all positions at that timestamp
+    let most_recent_positions: Vec<&PositionTime> = pos_time
+        .iter()
+        .filter(|pt| pt.last_update == most_recent_time)
+        .collect();
+
+    // If only one position at this timestamp, return it
+    if most_recent_positions.len() == 1 {
+        return most_recent_positions[0].clone();
+    }
+
+    // Multiple positions at same timestamp - prioritize by velocity availability
+    // Score: 2 if both velocities present, 1 if one present, 0 if neither
+    let best = most_recent_positions
+        .into_iter()
+        .max_by_key(|pt| {
+            let horiz_score = if pt.horiz_vel != 0.0 { 1 } else { 0 };
+            let vert_score = if pt.vert_vel != 0.0 { 1 } else { 0 };
+            horiz_score + vert_score
+        })
+        .expect("PositionTime Recent Estimation max_by_key failed");
+
+    best.clone()
     }
 
     //------------------------Sort Functions------------------------
@@ -160,12 +196,18 @@ impl PositionTime {
     }
 
     fn check_sort(pos_time: &Vec<PositionTime>) -> bool{
-        for (i, p) in pos_time.iter().enumerate(){
-            if p.last_update > pos_time[i].last_update{
-                return false;
+        // Returns true if array needs sorting (is NOT sorted)
+        // Returns false if array is already sorted
+        if pos_time.len() <= 1 {
+            return false; // Single or empty array is already sorted
+        }
+        
+        for i in 0..pos_time.len() - 1 {
+            if pos_time[i].last_update > pos_time[i + 1].last_update {
+                return true; // Found an inversion, array needs sorting
             }
         }
-        return true;
+        return false; // Array is already sorted
     }
 
 }
