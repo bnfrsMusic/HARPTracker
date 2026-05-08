@@ -651,3 +651,10 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+//create human-readable ID
+/*fn id -> String {
+    generate_human_id();
+    format!("{}-{}", get_aprs_callsign(), get_irr_modem());
+}*/
+
