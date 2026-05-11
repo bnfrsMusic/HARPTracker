@@ -1,0 +1,33 @@
+<!DOCTYPE HTML>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="stylesheet" href="styles.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>HARP Tracker - Connected Clients</title>
+    </head>
+    <body>
+        <div class="client_assignment" id="choose_panel">
+            <h3>Choose your role</h3>
+            <button id="btn_gs" class="connect-btn">Ground Station</button>
+            <button id="btn_client" class="connect-btn">Client Node</button>
+        </div>
+ 
+        <div class="gs_side" id="gs_panel">
+            <h3>Ground Station</h3>
+            <div class="connection-entry">
+                <label for="gs_id">ID</label>
+                <input type="text" id="gs_id" placeholder="" />
+            </div>
+        </div>
+ 
+        <div class="c_side" id="c_panel">
+            <h3>Client</h3>
+            <div class="connection-entry">
+                <label for="c_id">ID</label>
+                <input type="text" id="c_id" placeholder="" />
+            </div>
+        </div>
+    </body>
+
+    <script type="module" src="connections.js" defer></script>
