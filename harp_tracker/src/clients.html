@@ -6,7 +6,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>HARP Tracker - Connected Clients</title>
     </head>
-    <body>
+    <body class = "clients_body">
         <div class="client_assignment" id="choose_panel">
             <h3>Choose your role</h3>
             <button id="btn_gs" class="connect-btn">Ground Station</button>
@@ -15,19 +15,24 @@
  
         <div class="gs_side" id="gs_panel">
             <h3>Ground Station</h3>
-            <div class="connection-entry">
-                <label for="gs_id">ID</label>
-                <input type="text" id="gs_id" placeholder="" />
+            <div class = "id_field" id="gs_id_display"></div>
+
+            <h3 class = "client_assignment">Available Clients</h3>
+            <p id = "gs_status" color="var(--warning)">No Clients Online</p>
+            <div id = "client_list">  
             </div>
+
+            <button id = "btn_disconnect_gs">Disconnect</button>
         </div>
  
         <div class="c_side" id="c_panel">
             <h3>Client</h3>
-            <div class="connection-entry">
-                <label for="c_id">ID</label>
-                <input type="text" id="c_id" placeholder="" />
-            </div>
+            <div class = "id_field" id="c_id_display"></div>
+            
+            <h3 class = "client_assignment">Ground Station Connection</h3>
+            <p id = "c_status" color="var(--warning)">Waiting for Ground Station Connection...</p>
+            <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
+            <button id = "btn_disconnect_c">Disconnect</button>
         </div>
+    <script type="module" src="connections.js"></script>
     </body>
-
-    <script type="module" src="connections.js" defer></script>

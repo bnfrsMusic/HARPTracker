@@ -1,6 +1,12 @@
 pub mod track_lib;
+pub mod connect_lib;
 
 // Imports
+use tauri::{
+    async_runtime::spawn,
+    Manager,
+    Builder,
+};
 use chrono::Utc;
 use once_cell::sync::Lazy;
 use track_lib::tracker::Tracker;
@@ -11,6 +17,12 @@ use dotenvy::dotenv;
 use std::env;
 use std::fs;
 use serde::{Serialize, Deserialize};
+use crate::connect_lib::{
+    gen::{generate_human_id, return_id, set_status},
+    ground_station::gs_run,
+    client::client_run,
+    server::start_signaling_server,
+};
 
 pub struct Coords {
     lat: f64,
@@ -627,8 +639,9 @@ fn run_prediction() -> Result<PredictionData, String> {
 pub fn run() {
     // Load .env file at startup
     dotenv().ok();
-    
+
     tauri::Builder::default()
+
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             utc, date, 
@@ -646,8 +659,20 @@ pub fn run() {
             set_prediction_params, get_prediction_params,
             set_predictor, get_predictor, run_prediction,
             get_stadia_api_key,
-            get_aprsfi_api_key, set_aprsfi_api_key
+            get_aprsfi_api_key, set_aprsfi_api_key,
+            client_run, gs_run, return_id
         ])
+
+        // Server iniatialization
+        .setup(|_app| {
+            tauri::async_runtime::spawn(async move {
+                println!("Starting embedded signaling server...");
+                start_signaling_server().await; 
+            });
+
+            Ok(())
+        })
+
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
