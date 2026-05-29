@@ -24,34 +24,39 @@ const disconnect_c = document.getElementById('btn_disconnect_c');
 gs_panel.style.display = 'none';
 c_panel.style.display  = 'none';
 
+gs_status.textContent = 'No Clients Online';
+c_status.textContent = 'Waiting for Ground Station Connection...';
+
 function assignRole() {
     btn_gs.onclick = async () => {
         choose_panel.style.display = 'none';
         gs_panel.style.display     = 'flex';
+        gs_status.textContent = 'Ground Station Connected!';
 
-        await listen('new-node', (event) => {
+        /*await listen('new-node', (event) => {
             addPeerEntry(event.payload.id, event.payload.role);
-        });
+        });*/
 
         try {
             const generatedId = await invoke('gs_run');
             gs_gen_id.textContent = generatedId;
         } catch (error) {
             console.error('Error running GS:', error);
-            gs_status.textContent = 'Error running Ground Station';
+            gs_status.textContent = 'Error Running Ground Station';
         }
     };
  
     btn_node.onclick = async () => {
         choose_panel.style.display = 'none';
         c_panel.style.display      = 'flex';
+        c_status.textContent = 'Client Connected!';
 
         try {
             const generatedId = await invoke('client_run');
-            gs_gen_id.textContent = generatedId;
+            c_gen_id.textContent = generatedId;
         } catch (error) {
             console.error('Error running Client:', error);
-            c_status.textContent = 'Error running Client';
+            c_status.textContent = 'Error Running Client';
         }
     };
 }
