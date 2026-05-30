@@ -12,16 +12,18 @@ use once_cell::sync::Lazy;
 use track_lib::tracker::Tracker;
 use track_lib::pred::predictor::{PredictionManager, PredictionParams, PredictionResult};
 use track_lib::pred::sondhub_predictor::SondeHubPredictor;
-use std::{sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    sync::Mutex, 
+    time::{SystemTime, UNIX_EPOCH
+}};
 use dotenvy::dotenv;
 use std::env;
 use std::fs;
 use serde::{Serialize, Deserialize};
 use crate::connect_lib::{
-    gen::{generate_human_id, return_id, set_status},
-    ground_station::gs_run,
-    client::client_run,
-    server::start_signaling_server,
+    ground_station::{gs_run, gs_disconnect, GsState},
+    client::{client_run, client_disconnect, ClientState},
+    server::{start_signaling_server},
 };
 
 pub struct Coords {
@@ -641,7 +643,8 @@ pub fn run() {
     dotenv().ok();
 
     tauri::Builder::default()
-
+        .manage(std::sync::Arc::new(std::sync::Mutex::new(None::<GsState>)))
+        .manage(std::sync::Arc::new(std::sync::Mutex::new(None::<ClientState>)))
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             utc, date, 
@@ -660,7 +663,7 @@ pub fn run() {
             set_predictor, get_predictor, run_prediction,
             get_stadia_api_key,
             get_aprsfi_api_key, set_aprsfi_api_key,
-            client_run, gs_run, return_id
+            client_run, gs_run, client_disconnect, gs_disconnect
         ])
 
         // Server iniatialization

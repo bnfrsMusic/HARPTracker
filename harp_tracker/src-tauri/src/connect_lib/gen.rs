@@ -53,11 +53,6 @@ pub fn generate_human_id() -> String {
 }
 
 #[tauri::command]
-pub fn return_id(id: &str) -> String {
-    return id.to_string();
-}
-
-#[tauri::command]
 pub fn set_status(msg: &str) -> String {
     return format!("[STATUS] {msg}");
 }

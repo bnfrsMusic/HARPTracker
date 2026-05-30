@@ -1,27 +1,48 @@
-// ── node.rs ───────────────────────────────────────────────────────────────────
-// Translation of the Node branch:
-//   btnNode click → initPeer('node') → initiateNodeConnection()
-//                → setupConnectionListeners(conn, "gs")
+// Clients are first connected and then make WebRTC offers for Ground Station to answer
+// Signaling passes and the offers and their given answers via a server
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+
+use webrtc::{
+    data_channel::RTCDataChannel,
+    ice_transport::ice_candidate::RTCIceCandidateInit,
+    peer_connection::{
+        sdp::session_description::RTCSessionDescription, 
+        RTCPeerConnection
+    }
+};
 
 use crate::connect_lib::{
-    gen::{generate_human_id, return_id, set_status},
+    gen::generate_human_id,
     peer_factory::create_peer,
     signaling::{connect_signaling, SignalMsg},
 };
 
-use tauri::Emitter;
+use tauri::{
+    Emitter,
+    State
+};
 
-/// JS: btnNode click → initPeer('node') + initiateNodeConnection()
+pub struct ClientState {
+    pub peer:    Arc<RTCPeerConnection>,
+    pub channel: Arc<RTCDataChannel>,
+}
+
+// Main logic for registering GS peer
 #[tauri::command]
-pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
+pub async fn client_run(
+    app: tauri::AppHandle, 
+    gs_id: String,
+    state: State<'_, Arc<Mutex<Option<ClientState>>>>
+) -> Result<String, String> {
     let my_id = generate_human_id();
 
+    //Cloned variables used for long-running tasks
     let id_for_task = my_id.clone();
-
+    let the_state = state.inner().clone();
+    
+    // Spawned task for peer creation and connection handling in the background
     tauri::async_runtime::spawn(async move {
         let gs_id = {
             use tokio::io::AsyncBufReadExt;
@@ -33,46 +54,32 @@ pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
             line.trim().to_owned()
         };
 
-        if gs_id.is_empty() {
-            eprintln!("  No GS ID provided — exiting.");
-            return;
-        }
-
-        println!("\n  Status  : Linking to GS {}…", gs_id);
-
-        // ── Connect to signaling server ───────────────────────────────────────────
-        // JS: new Peer(humanId) — which connects to PeerServer internally
+        // Connects to server
         let (signal_tx, mut signal_rx) = match connect_signaling(&id_for_task).await {
         Ok(channels) => channels,
         Err(e) => {
-            // Emit the error to your JavaScript UI
                 app.emit("client-error", serde_json::json!({ "message": e })).unwrap();
-                return; // Stop running the command, but leave the app alive!
+                return;
             }
         };
 
-        // ── Create our WebRTC peer connection ─────────────────────────────────────
-        // JS: peer.connect(gsId)
         let peer = create_peer().await;
 
-        // ── Open a data channel toward the GS ────────────────────────────────────
-        // In WebRTC the *caller* (Node) creates the data channel; the *answerer*
-        // (GS) receives it via on_data_channel.  This mirrors PeerJS's conn object.
+        // Client peers create a data channel as the 'caller'
         let channel = peer
             .create_data_channel("main", None)
             .await
             .unwrap();
 
-        // Clone before moving into the closure
         let ch_open = channel.clone();
 
-        // JS: conn.on("open", () => conn.send({ type:"role-announcement", role:"node" }))
+        // Client is assigned announcement on open
         channel.on_open(Box::new(move || {
             let ch = ch_open.clone();
             Box::pin(async move {
                 let announcement = serde_json::json!({
                     "type": "role-announcement",
-                    "role": "node",
+                    "role": "client",
                 });
                 let _ = ch
                     .send(&Bytes::from(announcement.to_string()))
@@ -80,15 +87,13 @@ pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
             })
         }));
 
-        // JS: setupConnectionListeners(conn, "gs")
-        //     → conn.on("data") — handle the "assignment" message from GS
+        // Client assignment would be handled by Ground Station
         channel.on_message(Box::new(|msg| {
             Box::pin(async move {
                 let text = String::from_utf8(msg.data.to_vec()).unwrap_or_default();
                 if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
                     if data["type"] == "assignment" {
                         if let Some(name) = data["name"].as_str() {
-                            // JS: setStatus(`Linked to GS as ${data.name}`, "connected")
                             println!("  Status  : Linked to GS as {}", name);
                         }
                     }
@@ -96,15 +101,14 @@ pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
             })
         }));
         
-
-        // JS: conn.on("close") → setStatus("Disconnected from GS", "disconnected")
+        // Client will simply disconnect
         channel.on_close(Box::new(|| {
             Box::pin(async {
                 println!("  Status  : Disconnected from GS");
             })
         }));
 
-        // ── Trickle-ICE: forward our candidates to the GS via signaling ───────────
+        // Clients forwarded to Ground Station via trickle ICE candidates
         let signal_tx_ice = signal_tx.clone();
         let node_id_ice   = id_for_task.clone();
         let gs_id_ice     = gs_id.clone();
@@ -127,9 +131,7 @@ pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
             })
         }));
 
-        // ── Create and send SDP offer to the GS ──────────────────────────────────
-        // JS: peer.connect(gsId) internally calls createOffer → setLocalDescription
-        //     → send to peer server → GS receives "connection" event
+        // Create and send offer to Ground Station
         let offer = peer.create_offer(None).await.unwrap();
         peer.set_local_description(offer.clone()).await.unwrap();
 
@@ -141,7 +143,7 @@ pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
             })
             .unwrap();
 
-        // ── Signaling loop: handle answer + ICE from GS ───────────────────────────
+        // Signaling loop to handle answer from Ground Station
         while let Some(msg) = signal_rx.recv().await {
             match msg {
                 // GS replied with an SDP answer
@@ -168,8 +170,32 @@ pub async fn client_run(app: tauri::AppHandle) -> Result<String, String> {
 
                 _ => {}
             }
+            // Store state to be reached in connections.js
+            let mut s = the_state.lock().unwrap();
+            *s = Some(ClientState {
+                peer: peer.clone(),
+                channel: channel.clone(),
+            });
         }
     });
 
     Ok(my_id)
+}
+
+#[tauri::command]
+pub async fn client_disconnect(
+    state: State<'_, Arc<Mutex<Option<ClientState>>>>,
+) -> Result<(), String> {
+
+    let c_opt = {
+        let mut s = state.lock().unwrap();
+        s.take()
+    };
+
+    if let Some(client) = c_opt {
+        let _ = client.channel.close().await;
+        let _ = client.peer.close().await;
+    }
+
+    Ok(())
 }

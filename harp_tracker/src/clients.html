@@ -28,10 +28,14 @@
         <div class="c_side" id="c_panel">
             <h3>Client</h3>
             <div class = "id_field" id="c_id_display"></div>
+            <button id = "client_accept_id">Connect</button>
             
             <h3 class = "client_assignment">Ground Station Connection</h3>
             <p id = "c_status" color="var(--warning)">Waiting for Ground Station Connection...</p>
-            <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
+            
+            <div id = "gs_listed">
+                <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
+            </div>
             <button id = "btn_disconnect_c">Disconnect</button>
         </div>
     <script type="module" src="connections.js"></script>
