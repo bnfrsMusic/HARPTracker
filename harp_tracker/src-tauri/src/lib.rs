@@ -2,25 +2,32 @@ pub mod track_lib;
 
 // Imports
 use chrono::Utc;
-use once_cell::sync::Lazy;
-use track_lib::tracker::Tracker;
-use track_lib::pred::predictor::{PredictionManager, PredictionParams, PredictionResult};
-use track_lib::pred::sondhub_predictor::SondeHubPredictor;
-use std::{sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
 use dotenvy::dotenv;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
-use serde::{Serialize, Deserialize};
+use std::{
+    sync::Mutex,
+    time::{SystemTime, UNIX_EPOCH},
+};
+use track_lib::pred::predictor::{PredictionManager, PredictionParams, PredictionResult};
+use track_lib::pred::sondhub_predictor::SondeHubPredictor;
+use track_lib::tracker::Tracker;
 
 pub struct Coords {
     lat: f64,
     long: f64,
-    alt: f64 
+    alt: f64,
 }
 
 impl Default for Coords {
     fn default() -> Self {
-        Self { lat: 0.0, long: 0.0, alt: 0.0 }
+        Self {
+            lat: 0.0,
+            long: 0.0,
+            alt: 0.0,
+        }
     }
 }
 
@@ -30,7 +37,7 @@ pub struct TrackingPoint {
     lon: f64,
     alt: f64,
     time: u64,
-    track_type: String
+    track_type: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -51,7 +58,11 @@ pub struct PredictionData {
 
 impl Coords {
     pub fn new() -> Coords {
-        Self { lat: 0.0, long: 0.0, alt: 0.0 }
+        Self {
+            lat: 0.0,
+            long: 0.0,
+            alt: 0.0,
+        }
     }
     pub fn update(&mut self, pos: (f64, f64, f64, f64, f64)) {
         self.lat = pos.0;
@@ -63,10 +74,12 @@ impl Coords {
 // Globals
 pub static IRIDIUM_MODEM: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 pub static APRS_CALLSIGN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+pub static WSPR_CALLSIGN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 pub static TRACKER: Lazy<Mutex<Tracker>> = Lazy::new(|| Mutex::new(Tracker::new()));
 pub static LOCATION: Lazy<Mutex<Coords>> = Lazy::new(|| Mutex::new(Coords::new()));
 pub static FILTERING_METHOD: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::from("Recent")));
-pub static PREDICTION_MANAGER: Lazy<Mutex<PredictionManager>> = Lazy::new(|| Mutex::new(PredictionManager::new()));
+pub static PREDICTION_MANAGER: Lazy<Mutex<PredictionManager>> =
+    Lazy::new(|| Mutex::new(PredictionManager::new()));
 pub static SONDEHUB_PREDICTOR: Lazy<SondeHubPredictor> = Lazy::new(|| SondeHubPredictor::new());
 
 //API Keys
@@ -132,9 +145,41 @@ fn get_aprs_callsign() -> String {
 fn set_aprs() -> bool {
     let aprs_call = APRS_CALLSIGN.lock().unwrap();
     if !aprs_call.is_empty() {
-        TRACKER.lock().unwrap().new_aprs(APRSFI_API_KEY.as_str(), aprs_call.as_str());
+        TRACKER
+            .lock()
+            .unwrap()
+            .new_aprs(APRSFI_API_KEY.as_str(), aprs_call.as_str());
         true
     } else {
+        false
+    }
+}
+
+// Set the WSPR callsign
+#[tauri::command]
+fn set_wspr_callsign(id: String) {
+    println!("Setting WSPR_CALLSIGN to: {}", id);
+    *WSPR_CALLSIGN.lock().unwrap() = id;
+}
+
+// Get the WSPR callsign
+#[tauri::command]
+fn get_wspr_callsign() -> String {
+    let callsign = WSPR_CALLSIGN.lock().unwrap().to_string();
+    println!("WSPR CALLSIGN: {}", callsign);
+    callsign
+}
+
+// Init WSPR with current callsign
+#[tauri::command]
+fn set_wspr() -> bool {
+    let wspr_call = WSPR_CALLSIGN.lock().unwrap();
+    if !wspr_call.is_empty() {
+        println!("Setting up WSPR with callsign: {}", wspr_call);
+        TRACKER.lock().unwrap().new_wspr(wspr_call.as_str());
+        true
+    } else {
+        println!("Cannot set up WSPR: callsign is empty");
         false
     }
 }
@@ -143,7 +188,7 @@ fn set_aprs() -> bool {
 // #[tauri::command]
 // fn set_arduino() -> String{
 //     let mut tracker =TRACKER.lock().unwrap();
-    
+
 //     if !tracker.is_arduino_active(){
 //         TRACKER.lock().unwrap().new_arduino(None, None);
 //         let t= TRACKER.lock().unwrap().setup_arduino();
@@ -163,7 +208,10 @@ fn set_iridium() -> bool {
     let modem = IRIDIUM_MODEM.lock().unwrap();
     if !modem.is_empty() {
         println!("Setting up iridium with modem: {}", modem);
-        TRACKER.lock().unwrap().new_iridium("https://borealis.rci.montana.edu", modem.as_str());
+        TRACKER
+            .lock()
+            .unwrap()
+            .new_iridium("https://borealis.rci.montana.edu", modem.as_str());
         true
     } else {
         println!("Cannot set up iridium: modem is empty");
@@ -179,7 +227,7 @@ fn update() -> String {
     for err in t {
         r = format!("{}\nERROR: {:?}\n", r, err);
     }
-    
+
     let filtering_method = FILTERING_METHOD.lock().unwrap().clone();
     let estimation_type = match filtering_method.as_str() {
         "Average" => track_lib::position_time::EstimationType::Average,
@@ -187,13 +235,13 @@ fn update() -> String {
         "Recent" => track_lib::position_time::EstimationType::Recent,
         _ => track_lib::position_time::EstimationType::Recent,
     };
-    
+
     let tracker_guard = TRACKER.lock().unwrap();
     let pos = tracker_guard.get_position();
     let pos_filtered = tracker_guard.get_position_with_filtering(estimation_type);
     let velocities = tracker_guard.get_velocities();
     let last_update = tracker_guard.get_last_update();
-    
+
     LOCATION.try_lock().unwrap().update((
         (pos_filtered.0 * 1000.0).round() / 1000.0,
         (pos_filtered.1 * 1000.0).round() / 1000.0,
@@ -201,14 +249,18 @@ fn update() -> String {
         (velocities.0 * 1000.0).round() / 1000.0,
         (velocities.1 * 1000.0).round() / 1000.0,
     ));
-    
+
     println!("Update result: {}", r);
     println!("Raw position: {:?}", pos);
-    println!("Filtered position: lat={}, lon={}, alt={}", 
-             pos_filtered.0, pos_filtered.1, pos_filtered.2);
-    println!("Stored velocities: horiz_vel={}, vert_vel={}, last_update={}", 
-             velocities.0, velocities.1, last_update);
-    
+    println!(
+        "Filtered position: lat={}, lon={}, alt={}",
+        pos_filtered.0, pos_filtered.1, pos_filtered.2
+    );
+    println!(
+        "Stored velocities: horiz_vel={}, vert_vel={}, last_update={}",
+        velocities.0, velocities.1, last_update
+    );
+
     drop(tracker_guard);
     r
 }
@@ -221,7 +273,7 @@ fn get_position() -> (f64, f64, f64) {
     (
         (l1 * 1000.0).round() / 1000.0,
         (l2 * 1000.0).round() / 1000.0,
-        (alt * 1000.0).round() / 1000.0
+        (alt * 1000.0).round() / 1000.0,
     )
 }
 
@@ -270,23 +322,23 @@ fn get_last_update() -> u64 {
 
 //Returns if APRS is currently active
 #[tauri::command]
-fn is_aprs_active() -> bool{
+fn is_aprs_active() -> bool {
     let a = TRACKER.try_lock().unwrap().return_aprs();
     let s = TRACKER.try_lock().unwrap().return_sondehub();
 
-    for aprs in a{
-        if aprs.is_some(){
+    for aprs in a {
+        if aprs.is_some() {
             let aprs_unwrapped = aprs.unwrap();
-            if aprs_unwrapped.get_last_update() != 0{
-                return true
+            if aprs_unwrapped.get_last_update() != 0 {
+                return true;
             }
         }
     }
     for sondehub in s {
-        if sondehub.is_some(){
+        if sondehub.is_some() {
             let s = sondehub.unwrap();
-            if s.get_last_update() != 0{
-                return true
+            if s.get_last_update() != 0 {
+                return true;
             }
         }
     }
@@ -295,13 +347,28 @@ fn is_aprs_active() -> bool{
 
 //Returns if Iridium is currently active
 #[tauri::command]
-fn is_iridium_active() -> bool{
+fn is_iridium_active() -> bool {
     let a = TRACKER.try_lock().unwrap().return_iridium();
     for iridium in a {
-        if iridium.is_some(){
+        if iridium.is_some() {
             let a = iridium.unwrap();
-            if a.get_last_update() != 0{
-                return true
+            if a.get_last_update() != 0 {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+//Returns if WSPR is currently active
+#[tauri::command]
+fn is_wspr_active() -> bool {
+    let a = TRACKER.try_lock().unwrap().return_wspr();
+    for wspr in a {
+        if wspr.is_some() {
+            let a = wspr.unwrap();
+            if a.get_last_update() != 0 {
+                return true;
             }
         }
     }
@@ -323,43 +390,129 @@ fn set_filtering_method(method: String) {
 /// count of active APRS instances
 #[tauri::command]
 fn get_aprs_count() -> usize {
-    TRACKER.try_lock().unwrap().return_aprs().iter().filter(|a| a.is_some()).count()
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_aprs()
+        .iter()
+        .filter(|a| a.is_some())
+        .count()
 }
 
 /// count of active Iridium instances
 #[tauri::command]
 fn get_iridium_count() -> usize {
-    TRACKER.try_lock().unwrap().return_iridium().iter().filter(|i| i.is_some()).count()
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_iridium()
+        .iter()
+        .filter(|i| i.is_some())
+        .count()
 }
 
 // count of active SondeHub instances
 #[tauri::command]
 fn get_sondehub_count() -> usize {
-    TRACKER.try_lock().unwrap().return_sondehub().iter().filter(|s| s.is_some()).count()
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_sondehub()
+        .iter()
+        .filter(|s| s.is_some())
+        .count()
+}
+
+/// count of active WSPR instances
+#[tauri::command]
+fn get_wspr_count() -> usize {
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_wspr()
+        .iter()
+        .filter(|w| w.is_some())
+        .count()
 }
 
 /// Check if APRS instances have legit position data
 #[tauri::command]
 fn get_aprs_validity() -> Vec<bool> {
-    TRACKER.try_lock().unwrap().return_aprs().iter().map(|a| {
-        if let Some(aprs) = a {
-            aprs.get_last_update() != 0
-        } else {
-            false
-        }
-    }).collect()
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_aprs()
+        .iter()
+        .map(|a| {
+            if let Some(aprs) = a {
+                aprs.get_last_update() != 0
+            } else {
+                false
+            }
+        })
+        .collect()
 }
 
 /// Check if Iridium instances have legit position data
 #[tauri::command]
 fn get_iridium_validity() -> Vec<bool> {
-    TRACKER.try_lock().unwrap().return_iridium().iter().map(|i| {
-        if let Some(iridium) = i {
-            iridium.get_last_update() != 0
-        } else {
-            false
-        }
-    }).collect()
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_iridium()
+        .iter()
+        .map(|i| {
+            if let Some(iridium) = i {
+                iridium.get_last_update() != 0
+            } else {
+                false
+            }
+        })
+        .collect()
+}
+
+/// Check if WSPR instances have legit position data
+/// Also checks SondeHub instances with source_type="WSPR" since WSPR may be disabled
+#[tauri::command]
+fn get_wspr_validity() -> Vec<bool> {
+    let mut wspr_tracker = TRACKER.try_lock().unwrap();
+    
+    let wspr_validity: Vec<bool> = wspr_tracker
+        .return_wspr()
+        .iter()
+        .map(|w| {
+            if let Some(wspr) = w {
+                wspr.get_last_update() != 0
+            } else {
+                false
+            }
+        })
+        .collect();
+    
+    // Also check SondeHub instances with source_type="WSPR" for validity
+    let sondehub_wspr_validity: Vec<bool> = wspr_tracker
+        .return_sondehub()
+        .iter()
+        .filter(|s| {
+            if let Some(sondehub) = s {
+                sondehub.get_source_type() == "WSPR"
+            } else {
+                false
+            }
+        })
+        .map(|s| {
+            if let Some(sondehub) = s {
+                sondehub.get_last_update() != 0
+            } else {
+                false
+            }
+        })
+        .collect();
+    
+    // Combine both: return all WSPR validity entries, then SondeHub WSPR validity entries
+    let mut result = wspr_validity;
+    result.extend(sondehub_wspr_validity);
+    result
 }
 
 ///Read most recent CSV file from the Launch Data folder and return tracking points
@@ -367,20 +520,23 @@ fn get_iridium_validity() -> Vec<bool> {
 fn get_tracking_history() -> Vec<TrackingPoint> {
     let current_dir = std::env::current_dir().expect("Could not determine current directory");
     let folder_path = current_dir.join("Launch Data");
-    
+
     if !folder_path.exists() {
         return vec![];
     }
-    
+
     let mut latest_file = None;
     let mut latest_time = 0u64;
-    
+
     if let Ok(entries) = fs::read_dir(&folder_path) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().map_or(false, |ext| ext == "csv") {
                 if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                    if let Some(time_str) = filename.strip_prefix("data").and_then(|s| s.strip_suffix(".csv")) {
+                    if let Some(time_str) = filename
+                        .strip_prefix("data")
+                        .and_then(|s| s.strip_suffix(".csv"))
+                    {
                         if let Ok(time) = time_str.parse::<u64>() {
                             if time > latest_time {
                                 latest_time = time;
@@ -392,9 +548,9 @@ fn get_tracking_history() -> Vec<TrackingPoint> {
             }
         }
     }
-    
+
     let mut points = vec![];
-    
+
     if let Some(file_path) = latest_file {
         if let Ok(content) = fs::read_to_string(&file_path) {
             for line in content.lines().skip(1) {
@@ -404,7 +560,7 @@ fn get_tracking_history() -> Vec<TrackingPoint> {
                         parts[1].parse::<f64>(),
                         parts[2].parse::<f64>(),
                         parts[3].parse::<f64>(),
-                        parts[6].parse::<u64>()
+                        parts[6].parse::<u64>(),
                     ) {
                         let track_type = parts[0].to_string();
                         points.push(TrackingPoint {
@@ -412,14 +568,14 @@ fn get_tracking_history() -> Vec<TrackingPoint> {
                             lon,
                             alt,
                             time,
-                            track_type
+                            track_type,
                         });
                     }
                 }
             }
         }
     }
-    
+
     points.sort_by_key(|p| p.time);
     points
 }
@@ -444,7 +600,7 @@ fn set_prediction_params(
         ascent_rate,
         descent_rate,
     };
-    
+
     PREDICTION_MANAGER.lock().unwrap().set_params(params);
     println!("Prediction parameters updated");
 }
@@ -474,25 +630,29 @@ fn set_predictor(name: String) {
 /// Get the active predictor name
 #[tauri::command]
 fn get_predictor() -> String {
-    PREDICTION_MANAGER.lock().unwrap().get_predictor().to_string()
+    PREDICTION_MANAGER
+        .lock()
+        .unwrap()
+        .get_predictor()
+        .to_string()
 }
 
 /// Run prediction with current position and parameters
 #[tauri::command]
 fn run_prediction() -> Result<PredictionData, String> {
     println!("Starting prediction run...");
-    
+
     // Get current position from tracker
     let tracker = TRACKER.lock().unwrap();
     let (lat, lon, alt) = tracker.get_position();
     let (horiz_vel, vert_vel) = tracker.get_velocities();
     let last_update = tracker.get_last_update();
     drop(tracker);
-    
+
     if last_update == 0 {
         return Err("No position data available for prediction".to_string());
     }
-    
+
     let current_pos = track_lib::position_time::PositionTime {
         lat,
         lon,
@@ -501,64 +661,97 @@ fn run_prediction() -> Result<PredictionData, String> {
         horiz_vel,
         vert_vel,
     };
-    
+
     // Run prediction using the selected predictor
     let mut manager = PREDICTION_MANAGER.lock().unwrap();
     let predictor_name = manager.get_predictor().to_string();
-    
+
     let result = match predictor_name.as_str() {
-        "SondeHub" => {
-            manager.run_prediction(&current_pos, &*SONDEHUB_PREDICTOR)
-        },
+        "SondeHub" => manager.run_prediction(&current_pos, &*SONDEHUB_PREDICTOR),
         _ => {
             return Err(format!("Unknown predictor: {}", predictor_name));
         }
     };
-    
+
     match result {
         Ok(pred_result) => {
             println!("Prediction completed successfully");
-            
+
             // Convert to serializable format
-            let ascent: Vec<PredictionPoint> = pred_result.ascent.iter().map(|p| PredictionPoint {
-                lat: p.lat,
-                lon: p.lon,
-                alt: p.alt,
-                time: p.last_update,
-            }).collect();
-            
+            let ascent: Vec<PredictionPoint> = pred_result
+                .ascent
+                .iter()
+                .map(|p| PredictionPoint {
+                    lat: p.lat,
+                    lon: p.lon,
+                    alt: p.alt,
+                    time: p.last_update,
+                })
+                .collect();
+
             let burst = pred_result.burst.map(|p| PredictionPoint {
                 lat: p.lat,
                 lon: p.lon,
                 alt: p.alt,
                 time: p.last_update,
             });
-            
+
             let landing = pred_result.landing.map(|p| PredictionPoint {
                 lat: p.lat,
                 lon: p.lon,
                 alt: p.alt,
                 time: p.last_update,
             });
-            
-            let descent: Vec<PredictionPoint> = pred_result.descent.iter().map(|p| PredictionPoint {
-                lat: p.lat,
-                lon: p.lon,
-                alt: p.alt,
-                time: p.last_update,
-            }).collect();
-            
+
+            let descent: Vec<PredictionPoint> = pred_result
+                .descent
+                .iter()
+                .map(|p| PredictionPoint {
+                    lat: p.lat,
+                    lon: p.lon,
+                    alt: p.alt,
+                    time: p.last_update,
+                })
+                .collect();
+
             Ok(PredictionData {
                 ascent,
                 burst,
                 landing,
                 descent,
             })
-        },
+        }
         Err(e) => {
             println!("Prediction failed: {}", e);
             Err(format!("Prediction failed: {}", e))
         }
+    }
+}
+
+// Request location from SondeHub based on ground station coordinates
+#[tauri::command]
+fn request_location(gs_lat: f64, gs_lon: f64, gs_alt: f64) -> Result<String, String> {
+    use reqwest::blocking::Client;
+    
+    let client = Client::new();
+    
+    // Query SondeHub for nearby balloons
+    let url = format!(
+        "https://api.v2.sondehub.org/realtime/lat/{}/lon/{}/alt/{}/rad/100",
+        gs_lat, gs_lon, gs_alt
+    );
+    
+    match client.get(&url).send() {
+        Ok(response) => {
+            if response.status().is_success() {
+                let text = response.text().unwrap_or_default();
+                println!("Location request response: {}", text);
+                Ok(text)
+            } else {
+                Err(format!("Request failed with status: {}", response.status()))
+            }
+        }
+        Err(e) => Err(format!("Request failed: {}", e)),
     }
 }
 
@@ -568,20 +761,44 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            utc, date, 
-            set_irr_modem, get_irr_modem, 
-            set_aprs_callsign, get_aprs_callsign, 
-            set_aprs, set_iridium,
-            update, 
-            get_position, get_lat, get_long, get_alt,
-            get_horiz_vel, get_vert_vel,
-            get_last_update, is_aprs_active, is_iridium_active,
-            get_filtering_method, set_filtering_method,
-            get_aprs_count, get_iridium_count, get_sondehub_count,
-            get_aprs_validity, get_iridium_validity,
+            utc,
+            date,
+            set_irr_modem,
+            get_irr_modem,
+            set_aprs_callsign,
+            get_aprs_callsign,
+            set_aprs,
+            set_iridium,
+            update,
+            get_position,
+            get_lat,
+            get_long,
+            get_alt,
+            get_horiz_vel,
+            get_vert_vel,
+            get_last_update,
+            is_aprs_active,
+            is_iridium_active,
+            set_wspr_callsign,
+            get_wspr_callsign,
+            set_wspr,
+            is_wspr_active,
+            get_filtering_method,
+            set_filtering_method,
+            get_aprs_count,
+            get_iridium_count,
+            get_sondehub_count,
+            get_wspr_count,
+            get_aprs_validity,
+            get_iridium_validity,
+            get_wspr_validity,
             get_tracking_history,
-            set_prediction_params, get_prediction_params,
-            set_predictor, get_predictor, run_prediction
+            set_prediction_params,
+            get_prediction_params,
+            set_predictor,
+            get_predictor,
+            run_prediction,
+            request_location
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

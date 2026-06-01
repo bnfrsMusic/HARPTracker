@@ -479,6 +479,7 @@ body.panel-open .side-tabs { right: var(--panel-width); }
 
 /* Inputs, Selects, and Buttons */
 input[type="text"], 
+input[type="number"],
 select, 
 button {
     border: 1px solid var(--glass-border);
@@ -490,16 +491,45 @@ button {
 }
 
 input[type="text"]:focus, 
+input[type="number"]:focus,
 select:focus {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+input[type="text"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--muted);
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 button:hover {
     background-color: var(--primary-color);
     color: var(--active-tab-text);
     border-color: var(--primary-color);
+}
+
+/* Dark mode specific styling for selects and dropdowns */
+[data-theme="dark"] select {
+    background-color: var(--butt-drop-bg);
+    color: var(--text-main);
+}
+
+[data-theme="dark"] select option {
+    background-color: var(--panel-bg);
+    color: var(--text-main);
 }
 
 /* Status Indicators base style */
@@ -533,7 +563,16 @@ button:hover {
     100% { opacity: 1; }
 }
 
-.connection-entry select, .connection-entry input { padding: 0.25rem; font-family: afacad-flux; }
+.connection-entry select, .connection-entry input { 
+    padding: 0.25rem; 
+    font-family: afacad-flux; 
+}
+
+.connection-entry input:disabled {
+    background-color: var(--muted);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 .connection-entry .remove { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; }
 

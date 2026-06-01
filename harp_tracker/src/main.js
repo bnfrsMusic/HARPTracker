@@ -1,5 +1,4 @@
-import { setCompassAngle, createCompass } from './compass.js';
-
+import { setCompassAngle, createCompass } from "./compass.js";
 
 // allow quick dev call
 window.updateInfo = updateInfo;
@@ -27,6 +26,7 @@ let previousLong = null;
 // Track active instances
 let activeAprsCallsigns = [];
 let activeIridiumModems = [];
+let activeWsprCallsigns = [];
 
 // Interval IDs
 let utcIntervalId;
@@ -36,7 +36,7 @@ let predictionIntervalId;
 
 // geocoding API rate limiting
 let lastGeocodeTime = 0;
-const GEOCODE_RATE_LIMIT = 10000; 
+const GEOCODE_RATE_LIMIT = 10000;
 
 // Prediction parameters
 let predictionParams = {
@@ -45,76 +45,115 @@ let predictionParams = {
   parachuteDragCoeff: 0.5,
   burstAltitude: 30000.0,
   ascentRate: null,
-  descentRate: 5.0
+  descentRate: 5.0,
 };
 
 // Initialize app
 async function init() {
   try {
-    const sideTabs = document.querySelectorAll('.side-tab, .sidebar-tab');
-    const panelContents = document.getElementById('panel-contents');
+    const sideTabs = document.querySelectorAll(".side-tab, .sidebar-tab");
+    const panelContents = document.getElementById("panel-contents");
     let activeTab = null;
 
-    sideTabs.forEach(btn => {
-      btn.addEventListener('click', () => {
+    sideTabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
         const panelId = btn.dataset.panel;
         const panel = document.getElementById(panelId);
 
         if (activeTab === btn) {
-          btn.classList.remove('active');
+          btn.classList.remove("active");
           activeTab = null;
           if (panelContents) {
-            panelContents.classList.remove('open');
-            panelContents.setAttribute('aria-hidden', 'true');
+            panelContents.classList.remove("open");
+            panelContents.setAttribute("aria-hidden", "true");
           }
-          if (panel) panel.classList.remove('active');
-          document.body.classList.remove('panel-open');
+          if (panel) panel.classList.remove("active");
+          document.body.classList.remove("panel-open");
           return;
         }
 
-        sideTabs.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        sideTabs.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
         activeTab = btn;
 
-        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-        if (panel) panel.classList.add('active');
+        document
+          .querySelectorAll(".panel")
+          .forEach((p) => p.classList.remove("active"));
+        if (panel) panel.classList.add("active");
         if (panelContents) {
-          panelContents.classList.add('open');
-          panelContents.setAttribute('aria-hidden', 'false');
+          panelContents.classList.add("open");
+          panelContents.setAttribute("aria-hidden", "false");
         }
-        document.body.classList.add('panel-open');
+        document.body.classList.add("panel-open");
       });
     });
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener("click", (e) => {
       const target = e.target;
-      if (!target.closest('.panel-contents') && !target.closest('.side-tab') && !target.closest('.sidebar-tab')) {
+      if (
+        !target.closest(".panel-contents") &&
+        !target.closest(".side-tab") &&
+        !target.closest(".sidebar-tab")
+      ) {
         if (panelContents) {
-          panelContents.classList.remove('open');
-          panelContents.setAttribute('aria-hidden', 'true');
+          panelContents.classList.remove("open");
+          panelContents.setAttribute("aria-hidden", "true");
         }
-        sideTabs.forEach(b => b.classList.remove('active'));
+        sideTabs.forEach((b) => b.classList.remove("active"));
         activeTab = null;
-        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-        document.body.classList.remove('panel-open');
+        document
+          .querySelectorAll(".panel")
+          .forEach((p) => p.classList.remove("active"));
+        document.body.classList.remove("panel-open");
       }
     });
 
-    const addBtn = document.getElementById('add-connection');
-    const list = document.getElementById('connections-list');
+    const addBtn = document.getElementById("add-connection");
+    const list = document.getElementById("connections-list");
     if (addBtn && list) {
-      addBtn.addEventListener('click', () => addConnection(list));
+      addBtn.addEventListener("click", () => addConnection(list));
       addConnection(list);
     }
 
-    createCompass(document.getElementById('compass-top-left'));
+    // Request Location button handler
+    const requestLocationBtn = document.getElementById("request-location-btn");
+    if (requestLocationBtn) {
+      requestLocationBtn.addEventListener("click", async () => {
+        showConsole("Requesting location...");
+        
+        // Try to get location from browser geolocation
+        try {
+          const location = await getUserLocation();
+          if (location) {
+            showConsole(`Location acquired: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`);
+            
+            // Update ground station inputs with the acquired location
+            const gsInputs = document.querySelectorAll(".ground-station input");
+            if (gsInputs.length >= 3) {
+              gsInputs[0].value = location.latitude.toFixed(6);
+              gsInputs[1].value = location.longitude.toFixed(6);
+              gsInputs[2].value = "0"; // Default altitude
+            }
+            
+            // Update compass with the new location
+            await updateCompass(location.latitude, location.longitude);
+          } else {
+            showConsole("Failed to acquire location. Please enter coordinates manually in Settings.");
+          }
+        } catch (err) {
+          showConsole("Location request failed: " + err);
+        }
+      });
+    }
+
+    createCompass(document.getElementById("compass-top-left"));
     window.setCompassAngle = setCompassAngle;
 
     try {
       async function pollHeading() {
         try {
-          const heading = await invoke('get_heading');
-          if (typeof heading === 'number' || !Number.isNaN(Number(heading))) {
+          const heading = await invoke("get_heading");
+          if (typeof heading === "number" || !Number.isNaN(Number(heading))) {
             setCompassAngle(Number(heading));
           }
         } catch (err) {}
@@ -125,7 +164,7 @@ async function init() {
       initThemeSelector();
     } catch (e) {}
   } catch (err) {
-    console.warn('UI init warning:', err);
+    console.warn("UI init warning:", err);
   }
 
   // Get DOM elements
@@ -144,10 +183,10 @@ async function init() {
   console_text = document.querySelector("#console-text");
   radioDropdown = document.querySelector("#radio-method");
   radioInput = document.querySelector(".dropdown input[type='text']");
-  
+
   // Setup prediction controls
   setupPredictionControls();
-  
+
   const filteringMethod = document.querySelector("#filtering-method");
   if (filteringMethod) {
     filteringMethod.addEventListener("change", handleFilteringMethodChange);
@@ -165,7 +204,7 @@ async function init() {
     radioDropdown.addEventListener("change", handleRadioDropdownChange);
     updateInputPlaceholder(radioDropdown.value);
     radioInput.addEventListener("blur", handleRadioInputBlur);
-    radioInput.addEventListener("keypress", function(event) {
+    radioInput.addEventListener("keypress", function (event) {
       if (event.key === "Enter") {
         handleRadioInputBlur(event);
       }
@@ -182,7 +221,7 @@ async function init() {
   function updateInputPlaceholder(radioType) {
     const radioInput = document.querySelector(".dropdown input[type='text']");
     if (!radioInput) return;
-    
+
     if (radioType === "iridium_field") {
       radioInput.placeholder = "Enter Iridium Modem ID";
     } else if (radioType === "aprs_field") {
@@ -193,7 +232,7 @@ async function init() {
   async function loadRadioInputValue(radioType) {
     const radioInput = document.querySelector(".dropdown input[type='text']");
     if (!radioInput) return;
-    
+
     try {
       if (radioType === "iridium_field") {
         const savedIridium = await invoke("get_irr_modem");
@@ -203,7 +242,8 @@ async function init() {
         radioInput.value = savedAprs || "";
       }
     } catch (error) {
-      if (console_text) console_text.textContent = "Error loading radio value: " + error;
+      if (console_text)
+        console_text.textContent = "Error loading radio value: " + error;
       else console.error("Error loading radio value:", error);
     }
   }
@@ -211,26 +251,26 @@ async function init() {
   async function handleRadioInputBlur(event) {
     const radioDropdown = document.querySelector("#radio-method");
     if (!radioDropdown) return;
-    
+
     const selectedRadio = radioDropdown.value;
     const newValue = event.target.value.trim();
-    
+
     if (selectedRadio === "iridium_field") {
       await handleIridiumUpdate(newValue);
     } else if (selectedRadio === "aprs_field") {
       await handleAprsUpdate(newValue);
     }
-    
+
     event.target.value = "";
   }
-  
+
   // Initialize the map iframe
   initMapIframe();
-  
+
   // Set up event listeners for input fields
   if (ir_mod) {
     ir_mod.addEventListener("blur", handleIridiumInput);
-    ir_mod.addEventListener("keypress", function(event) {
+    ir_mod.addEventListener("keypress", function (event) {
       if (event.key === "Enter") {
         handleIridiumInput(event);
       }
@@ -239,28 +279,27 @@ async function init() {
 
   if (aprs_call) {
     aprs_call.addEventListener("blur", handleAprsInput);
-    aprs_call.addEventListener("keypress", function(event) {
+    aprs_call.addEventListener("keypress", function (event) {
       if (event.key === "Enter") {
         handleAprsInput(event);
       }
     });
   }
-  
 
   await loadSavedValues();
-  
+
   // Initial Updates
   await date();
   await updateTracker();
   await updateUtc();
   await updateActiveStatus();
   await updateConnectedClients();
-  
+
   // Start timers
   utcIntervalId = setInterval(updateUtc, 100);
   trackerIntervalId = setInterval(updateTracker, 15000);
   statusIntervalId = setInterval(updateActiveStatus, 1000);
-  
+
   // Start prediction timer (every 30 seconds)
   predictionIntervalId = setInterval(runPrediction, 30000);
 }
@@ -268,55 +307,66 @@ async function init() {
 // Setup prediction controls
 function setupPredictionControls() {
   // Get prediction panel inputs
-  const payloadMassInput = document.querySelector('#predictions .payload-params label:nth-child(1) input');
-  const balloonMassInput = document.querySelector('#predictions .payload-params label:nth-child(2) input');
-  const parachuteDragInput = document.querySelector('#predictions .payload-params label:nth-child(3) input');
-  
+  const payloadMassInput = document.querySelector(
+    "#predictions .payload-params label:nth-child(1) input",
+  );
+  const balloonMassInput = document.querySelector(
+    "#predictions .payload-params label:nth-child(2) input",
+  );
+  const parachuteDragInput = document.querySelector(
+    "#predictions .payload-params label:nth-child(3) input",
+  );
+
   // Set default values
   if (payloadMassInput) payloadMassInput.value = predictionParams.payloadMass;
   if (balloonMassInput) balloonMassInput.value = predictionParams.balloonMass;
-  if (parachuteDragInput) parachuteDragInput.value = predictionParams.parachuteDragCoeff;
-  
+  if (parachuteDragInput)
+    parachuteDragInput.value = predictionParams.parachuteDragCoeff;
+
   // Add event listeners for parameter changes
   if (payloadMassInput) {
-    payloadMassInput.addEventListener('change', (e) => {
+    payloadMassInput.addEventListener("change", (e) => {
       predictionParams.payloadMass = parseFloat(e.target.value) || 2.0;
       updatePredictionParams();
     });
   }
-  
+
   if (balloonMassInput) {
-    balloonMassInput.addEventListener('change', (e) => {
+    balloonMassInput.addEventListener("change", (e) => {
       predictionParams.balloonMass = parseFloat(e.target.value) || 1.5;
       updatePredictionParams();
     });
   }
-  
+
   if (parachuteDragInput) {
-    parachuteDragInput.addEventListener('change', (e) => {
+    parachuteDragInput.addEventListener("change", (e) => {
       predictionParams.parachuteDragCoeff = parseFloat(e.target.value) || 0.5;
       updatePredictionParams();
     });
   }
-  
+
   // Get run prediction button
-  const runBtn = document.querySelector('#predictions .run-controls button:first-child');
+  const runBtn = document.querySelector(
+    "#predictions .run-controls button:first-child",
+  );
   if (runBtn) {
-    runBtn.addEventListener('click', async () => {
+    runBtn.addEventListener("click", async () => {
       await runPrediction();
     });
   }
-  
+
   // Algorithm selector
-  const algoSelect = document.querySelector('#predictions label select');
+  const algoSelect = document.querySelector("#predictions label select");
   if (algoSelect) {
-    algoSelect.addEventListener('change', async (e) => {
+    algoSelect.addEventListener("change", async (e) => {
       const algorithm = e.target.value;
       try {
-        await invoke('set_predictor', { name: algorithm });
-        if (console_text) console_text.textContent = `Predictor set to: ${algorithm}`;
+        await invoke("set_predictor", { name: algorithm });
+        if (console_text)
+          console_text.textContent = `Predictor set to: ${algorithm}`;
       } catch (error) {
-        if (console_text) console_text.textContent = `Error setting predictor: ${error}`;
+        if (console_text)
+          console_text.textContent = `Error setting predictor: ${error}`;
       }
     });
   }
@@ -325,16 +375,16 @@ function setupPredictionControls() {
 // Update prediction parameters in backend
 async function updatePredictionParams() {
   try {
-    await invoke('set_prediction_params', {
+    await invoke("set_prediction_params", {
       payloadMass: predictionParams.payloadMass,
       balloonMass: predictionParams.balloonMass,
       parachuteDragCoeff: predictionParams.parachuteDragCoeff,
       burstAltitude: predictionParams.burstAltitude,
       ascentRate: predictionParams.ascentRate,
-      descentRate: predictionParams.descentRate
+      descentRate: predictionParams.descentRate,
     });
   } catch (error) {
-    console.error('Error updating prediction params:', error);
+    console.error("Error updating prediction params:", error);
   }
 }
 
@@ -342,28 +392,31 @@ async function updatePredictionParams() {
 async function runPrediction() {
   try {
     if (console_text) console_text.textContent = "Starting predictions...";
-    
+
     // Update parameters first
     await updatePredictionParams();
-    
+
     // Run prediction
-    const result = await invoke('run_prediction');
-    
+    const result = await invoke("run_prediction");
+
     if (console_text) console_text.textContent = "Predictions complete!";
-    
+
     // Send prediction data to map
-    const mapIframe = document.querySelector('.screen');
+    const mapIframe = document.querySelector(".screen");
     if (mapIframe && mapIframe.contentWindow) {
-      mapIframe.contentWindow.postMessage({
-        type: 'UPDATE_PREDICTION',
-        data: result
-      }, '*');
+      mapIframe.contentWindow.postMessage(
+        {
+          type: "UPDATE_PREDICTION",
+          data: result,
+        },
+        "*",
+      );
     }
-    
-    console.log('Prediction result:', result);
+
+    console.log("Prediction result:", result);
   } catch (error) {
     if (console_text) console_text.textContent = `Prediction error: ${error}`;
-    console.error('Prediction error:', error);
+    console.error("Prediction error:", error);
   }
 }
 
@@ -374,14 +427,15 @@ async function loadSavedValues() {
       if (ir_mod) ir_mod.value = savedIridium;
       previousIridiumValue = savedIridium;
     }
-    
+
     const savedAprs = await invoke("get_aprs_callsign");
     if (savedAprs) {
       if (aprs_call) aprs_call.value = savedAprs;
       previousAprsValue = savedAprs;
     }
   } catch (error) {
-    if (console_text) console_text.textContent = "Failed to load saved values:" + error;
+    if (console_text)
+      console_text.textContent = "Failed to load saved values:" + error;
     else console.error("Failed to load saved values:", error);
   }
 }
@@ -409,13 +463,17 @@ async function updateTracker() {
   try {
     // Update tracker data
     await invoke("update");
-    
+
     // Update position display
     await getPosition();
-    
+
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    if (console_text) console_text.textContent = `${timeStr}: Tracker data updated`;
+    const timeStr = now.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    if (console_text)
+      console_text.textContent = `${timeStr}: Tracker data updated`;
   } catch (error) {
     console_text.textContent = "Error in tracker update cycle:" + error;
   }
@@ -430,7 +488,7 @@ async function updateActiveStatus() {
       if (isAprsActive) aprs_butt.style.display = "inline";
       else aprs_butt.style.display = "none";
     }
-    
+
     try {
       const isIridiumActive = await invoke("is_iridium_active");
       if (iridium_butt) {
@@ -440,10 +498,12 @@ async function updateActiveStatus() {
     } catch (error) {
       console_text.textContent = "Error checking Iridium status:" + error;
     }
-    
+
     // Update the connection display with fresh last update time
     await updateConnectedClients();
-    try { await updateConnectionIndicators(); } catch(e) { }
+    try {
+      await updateConnectionIndicators();
+    } catch (e) {}
   } catch (error) {
     console_text.textContent = "Error updating active status:" + error;
   }
@@ -454,15 +514,17 @@ async function updateConnectedClients() {
   try {
     const signalFlexbox = document.querySelector(".signal_flexbox");
     if (!signalFlexbox) return;
-    
+
     //Clear the existing stuff
-    const existingConnections = signalFlexbox.querySelectorAll('.connection-item');
-    existingConnections.forEach(item => item.remove());
-    
+    const existingConnections =
+      signalFlexbox.querySelectorAll(".connection-item");
+    existingConnections.forEach((item) => item.remove());
+
     //validity data
     const aprsValidity = await invoke("get_aprs_validity");
     const iridiumValidity = await invoke("get_iridium_validity");
-    
+    const wsprValidity = await invoke("get_wspr_validity");
+
     // Update APRS button if there are active APRS connections
     if (activeAprsCallsigns.length > 0 && aprs_butt) {
       const callsign = activeAprsCallsigns[0];
@@ -470,7 +532,7 @@ async function updateConnectedClients() {
       const isValid = aprsValidity[0];
       aprs_butt.style.backgroundColor = isValid ? "#90EE90" : "white";
       aprs_butt.style.display = "inline";
-      
+
       // Add additional APRS connections
       for (let i = 1; i < activeAprsCallsigns.length; i++) {
         const item = document.createElement("button");
@@ -481,21 +543,33 @@ async function updateConnectedClients() {
         signalFlexbox.appendChild(item);
       }
     }
-    
+
     // Update Iridium button if there are active Iridium connections
     if (activeIridiumModems.length > 0 && iridium_butt) {
-      const modem = activeIridiumModems[0]; 
+      const modem = activeIridiumModems[0];
       iridium_butt.textContent = `Iridium | ${modem}`;
-      const isValid = iridiumValidity[0]; 
+      const isValid = iridiumValidity[0];
       iridium_butt.style.backgroundColor = isValid ? "#90EE90" : "white";
       iridium_butt.style.display = "inline";
-      
+
       // Add additional Iridium connections
       for (let i = 1; i < activeIridiumModems.length; i++) {
         const item = document.createElement("button");
         item.className = "connection-item";
         item.textContent = `Iridium | ${activeIridiumModems[i]}`;
         const isValid = iridiumValidity[i];
+        item.style.backgroundColor = isValid ? "#90EE90" : "white";
+        signalFlexbox.appendChild(item);
+      }
+    }
+
+    // Update WSPR button if there are active WSPR connections
+    if (activeWsprCallsigns.length > 0) {
+      for (let i = 0; i < activeWsprCallsigns.length; i++) {
+        const item = document.createElement("button");
+        item.className = "connection-item";
+        item.textContent = `WSPR\n${activeWsprCallsigns[i]}`;
+        const isValid = wsprValidity[i];
         item.style.backgroundColor = isValid ? "#90EE90" : "white";
         signalFlexbox.appendChild(item);
       }
@@ -512,15 +586,18 @@ async function updateCityAndState(latitude, longitude) {
   if (now - lastGeocodeTime < GEOCODE_RATE_LIMIT) {
     return;
   }
-  
+
   lastGeocodeTime = now;
-  
+
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`, {
-      headers: {
-        'User-Agent': 'HARP-Tracker-App/1.0'
-      }
-    });
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+      {
+        headers: {
+          "User-Agent": "HARP-Tracker-App/1.0",
+        },
+      },
+    );
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -532,19 +609,18 @@ async function updateCityAndState(latitude, longitude) {
     }
 
     const data = await response.json();
-    
+
     // Extract city and state information
-    let cityName = data.address.city || 
-                   data.address.town || 
-                   data.address.village || 
-                   data.address.hamlet ||
-                   "Unknown";
-                   
-    let stateName = data.address.state || 
-                    data.address.province || 
-                    data.address.region ||
-                    "";
-    
+    let cityName =
+      data.address.city ||
+      data.address.town ||
+      data.address.village ||
+      data.address.hamlet ||
+      "Unknown";
+
+    let stateName =
+      data.address.state || data.address.province || data.address.region || "";
+
     // Update UI
     if (citystate) citystate.textContent = cityName + ", " + stateName;
 
@@ -565,9 +641,7 @@ async function updateLastUpdate() {
   }
 }
 
-
 //------------------------------Input Handlers------------------------------
-
 
 // Handle Iridium input changes
 async function handleIridiumUpdate(newValue) {
@@ -575,20 +649,22 @@ async function handleIridiumUpdate(newValue) {
     if (newValue !== "") {
       await invoke("set_irr_modem", { id: newValue });
       await invoke("set_iridium");
-      
+
       // Add to active instances list if not already present
       if (!activeIridiumModems.includes(newValue)) {
         activeIridiumModems.push(newValue);
       }
-      
-      if (console_text) console_text.textContent = "Iridium modem updated: " + newValue;
+
+      if (console_text)
+        console_text.textContent = "Iridium modem updated: " + newValue;
       else console.log("Iridium modem updated:", newValue);
-      
+
       // Update the display of connected clients
       await updateConnectedClients();
     }
   } catch (error) {
-    if (console_text) console_text.textContent = "Error updating Iridium settings: " + error;
+    if (console_text)
+      console_text.textContent = "Error updating Iridium settings: " + error;
     else console.error("Error updating Iridium settings:", error);
   }
 }
@@ -598,9 +674,11 @@ async function handleFilteringMethodChange(event) {
   const newValue = event.target.value;
   try {
     await invoke("set_filtering_method", { method: newValue });
-    if (console_text) console_text.textContent = "Filtering method updated: " + newValue;
+    if (console_text)
+      console_text.textContent = "Filtering method updated: " + newValue;
   } catch (error) {
-    if (console_text) console_text.textContent = "Error updating filtering method: " + error;
+    if (console_text)
+      console_text.textContent = "Error updating filtering method: " + error;
     else console.error("Error updating filtering method:", error);
   }
 }
@@ -611,20 +689,22 @@ async function handleAprsUpdate(newValue) {
     if (newValue !== "") {
       await invoke("set_aprs_callsign", { id: newValue });
       await invoke("set_aprs");
-      
+
       // Add to active instances list if not already present
       if (!activeAprsCallsigns.includes(newValue)) {
         activeAprsCallsigns.push(newValue);
       }
-      
-      if (console_text) console_text.textContent = "APRS callsign updated: " + newValue;
+
+      if (console_text)
+        console_text.textContent = "APRS callsign updated: " + newValue;
       else console.log("APRS callsign updated:", newValue);
-      
+
       // Update the display of connected clients
       await updateConnectedClients();
     }
   } catch (error) {
-    if (console_text) console_text.textContent = "Error updating APRS settings: " + error;
+    if (console_text)
+      console_text.textContent = "Error updating APRS settings: " + error;
     else console.error("Error updating APRS settings:", error);
   }
 }
@@ -635,8 +715,8 @@ async function getPosition() {
     const currentLat = await invoke("get_lat");
     const currentLong = await invoke("get_long");
     const altitude = await invoke("get_alt");
-    const horiz_vel = await invoke("get_horiz_vel");  
-    const vert_vel = await invoke("get_vert_vel"); 
+    const horiz_vel = await invoke("get_horiz_vel");
+    const vert_vel = await invoke("get_vert_vel");
 
     const numLat = Number(currentLat);
     const numLong = Number(currentLong);
@@ -649,142 +729,223 @@ async function getPosition() {
     if (alt && !Number.isNaN(numAlt)) alt.textContent = numAlt + "m";
 
     // Update map
-    if (!Number.isNaN(numLat) && !Number.isNaN(numLong) && !Number.isNaN(numAlt) && numAlt != 0.0)  {
-      updateMap(numLat, numLong, numAlt, numHoriz, numVert); 
+    if (
+      !Number.isNaN(numLat) &&
+      !Number.isNaN(numLong) &&
+      !Number.isNaN(numAlt)
+    ) {
+      updateMap(numLat, numLong, numAlt, numHoriz, numVert);
 
       // Check if coordinates have changed significantly before updating city
-      const hasLocationChanged = 
-        previousLat === null || 
+      const hasLocationChanged =
+        previousLat === null ||
         previousLong === null ||
-        (typeof numLat === 'number' && typeof previousLat === 'number' && Math.abs(numLat - previousLat) > 0.01) ||
-        (typeof numLong === 'number' && typeof previousLong === 'number' && Math.abs(numLong - previousLong) > 0.01);
-      
+        (typeof numLat === "number" &&
+          typeof previousLat === "number" &&
+          Math.abs(numLat - previousLat) > 0.01) ||
+        (typeof numLong === "number" &&
+          typeof previousLong === "number" &&
+          Math.abs(numLong - previousLong) > 0.01);
+
       // Update elements if location has changed
       if (hasLocationChanged) {
         if (!Number.isNaN(numLat) && !Number.isNaN(numLong)) {
           //update city and state
           updateCityAndState(numLat, numLong);
 
-          // make UTC timestamp 
+          // make UTC timestamp
           const now = new Date();
-          const utcTimeStr = now.getUTCHours().toString().padStart(2, '0') + ":" + 
-                            now.getUTCMinutes().toString().padStart(2, '0') + ":" + 
-                            now.getUTCSeconds().toString().padStart(2, '0');
-          //update compass          
-          try { await updateCompass(numLat, numLong); } catch(e){}
-          
+          const utcTimeStr =
+            now.getUTCHours().toString().padStart(2, "0") +
+            ":" +
+            now.getUTCMinutes().toString().padStart(2, "0") +
+            ":" +
+            now.getUTCSeconds().toString().padStart(2, "0");
+          //update compass
+          try {
+            await updateCompass(numLat, numLong);
+          } catch (e) {}
+
           // update alt graph with the utc timestamp
-          try { updateAltitudeGraph(utcTimeStr, numAlt); } catch(e){}
+          try {
+            if (numAlt != 0.0){updateAltitudeGraph(utcTimeStr, numAlt);}
+          } catch (e) {}
         }
         previousLat = Number.isFinite(numLat) ? numLat : previousLat;
         previousLong = Number.isFinite(numLong) ? numLong : previousLong;
       }
     }
   } catch (error) {
-    if (console_text) console_text.textContent = "Error getting position:" + error;
+    if (console_text)
+      console_text.textContent = "Error getting position:" + error;
     else console.error("Error getting position:", error);
   }
 }
 
 //function that adds a connection to the tracker
 function addConnection(container) {
-  const entry = document.createElement('div');
-  entry.className = 'connection-entry';
+  const entry = document.createElement("div");
+  entry.className = "connection-entry";
 
-  const indicator = document.createElement('div');
-  indicator.className = 'conn-indicator';
+  const indicator = document.createElement("div");
+  indicator.className = "conn-indicator";
 
-  const type = document.createElement('select');
-  ['None','APRS','Iridium'].forEach(n => {
-    const o = document.createElement('option'); o.value = n; o.textContent = n; type.appendChild(o);
+  const type = document.createElement("select");
+  ["None", "APRS", "Iridium", "WSPR"].forEach((n) => {
+    const o = document.createElement("option");
+    o.value = n;
+    o.textContent = n;
+    type.appendChild(o);
   });
 
-  const ident = document.createElement('input');
-  ident.type = 'text';
-  ident.placeholder = 'Identifier (callsign / IMEI)';
+  const ident = document.createElement("input");
+  ident.type = "text";
+  ident.placeholder = "Identifier (callsign / IMEI)";
 
-  const remove = document.createElement('button');
-  remove.className = 'remove';
-  remove.innerText = '✕';
+  const remove = document.createElement("button");
+  remove.className = "remove";
+  remove.innerText = "✕";
 
-  const activate = document.createElement('button');
-  activate.className = 'activate';
-  activate.innerText = 'Activate';
+  const activate = document.createElement("button");
+  activate.className = "activate";
+  activate.innerText = "Activate";
 
   async function commitConnection() {
     const val = ident.value.trim();
     const t = type.value;
-    if (!val || t === 'None') return;
+    if (!val || t === "None") return;
 
     try {
-      if (t === 'APRS') {
-        await invoke('set_aprs_callsign', { id: val });
-        await invoke('set_aprs');
+      if (t === "APRS") {
+        await invoke("set_aprs_callsign", { id: val });
+        await invoke("set_aprs");
         if (!activeAprsCallsigns.includes(val)) activeAprsCallsigns.push(val);
-      } else if (t === 'Iridium') {
-        await invoke('set_irr_modem', { id: val });
-        await invoke('set_iridium');
+      } else if (t === "Iridium") {
+        await invoke("set_irr_modem", { id: val });
+        await invoke("set_iridium");
         if (!activeIridiumModems.includes(val)) activeIridiumModems.push(val);
+      } else if (t === "WSPR") {
+        await invoke("set_wspr_callsign", { id: val });
+        await invoke("set_wspr");
+        if (!activeWsprCallsigns.includes(val)) activeWsprCallsigns.push(val);
       }
 
       await updateConnectedClients();
-      try { await invoke('update'); } catch(e) {}
+      try {
+        await invoke("update");
+      } catch (e) {}
 
-      setTimeout(()=>{ updateConnectionIndicators().catch(()=>{}); }, 800);
+      setTimeout(() => {
+        updateConnectionIndicators().catch(() => {});
+      }, 800);
     } catch (err) {
-      if (console_text) console_text.textContent = 'Error saving connection: ' + err;
-      else console.error('Error saving connection:', err);
+      if (console_text)
+        console_text.textContent = "Error saving connection: " + err;
+      else console.error("Error saving connection:", err);
     }
   }
 
-  remove.addEventListener('click', async () => {
+  remove.addEventListener("click", async () => {
     const val = ident.value.trim();
     const t = type.value;
-    if (t === 'APRS') {
+    if (t === "APRS") {
       const idx = activeAprsCallsigns.indexOf(val);
       if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
-      try { await invoke('set_aprs_callsign', { id: '' }); await invoke('set_aprs'); } catch(e){}
-    } else if (t === 'Iridium') {
+      try {
+        await invoke("set_aprs_callsign", { id: "" });
+        await invoke("set_aprs");
+      } catch (e) {}
+    } else if (t === "Iridium") {
       const idx = activeIridiumModems.indexOf(val);
       if (idx >= 0) activeIridiumModems.splice(idx, 1);
-      try { await invoke('set_irr_modem', { id: '' }); await invoke('set_iridium'); } catch(e){}
+      try {
+        await invoke("set_irr_modem", { id: "" });
+        await invoke("set_iridium");
+      } catch (e) {}
+    } else if (t === "WSPR") {
+      const idx = activeWsprCallsigns.indexOf(val);
+      if (idx >= 0) activeWsprCallsigns.splice(idx, 1);
+      try {
+        await invoke("set_wspr_callsign", { id: "" });
+        await invoke("set_wspr");
+      } catch (e) {}
     }
     container.removeChild(entry);
     await updateConnectedClients();
-    try { await invoke('update'); } catch(e) {}
-    setTimeout(()=>{ updateConnectionIndicators().catch(()=>{}); }, 800);
+    try {
+      await invoke("update");
+    } catch (e) {}
+    setTimeout(() => {
+      updateConnectionIndicators().catch(() => {});
+    }, 800);
   });
 
-  ident.addEventListener('blur', commitConnection);
-  ident.addEventListener('keypress', (e) => { if (e.key === 'Enter') commitConnection(); });
-  type.addEventListener('change', () => { });
+  ident.addEventListener("blur", commitConnection);
+  ident.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") commitConnection();
+  });
+  type.addEventListener("change", () => {});
 
-  activate.addEventListener('click', async () => {
+  activate.addEventListener("click", async () => {
     const val = ident.value.trim();
     const t = type.value;
-    if (!val || t === 'None') { showConsole('Enter identifier and select method first'); return; }
-    if (activate.dataset.active === '1') {
-      activate.dataset.active = '0';
-      activate.innerText = 'Activate';
-      if (t === 'APRS') {
-        const idx = activeAprsCallsigns.indexOf(val); if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
-        try { await invoke('set_aprs_callsign', { id: '' }); await invoke('set_aprs'); } catch(e) { console.error(e); }
-      } else if (t === 'Iridium') {
-        const idx = activeIridiumModems.indexOf(val); if (idx >= 0) activeIridiumModems.splice(idx, 1);
-        try { await invoke('set_irr_modem', { id: '' }); await invoke('set_iridium'); } catch(e) { console.error(e); }
+    if (!val || t === "None") {
+      showConsole("Enter identifier and select method first");
+      return;
+    }
+    if (activate.dataset.active === "1") {
+      // DEACTIVATING
+      activate.dataset.active = "0";
+      activate.innerText = "Activate";
+      ident.disabled = false;  // Re-enable input when deactivating
+      type.disabled = false;   // Re-enable type selector when deactivating
+      
+      if (t === "APRS") {
+        const idx = activeAprsCallsigns.indexOf(val);
+        if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
+        try {
+          await invoke("set_aprs_callsign", { id: "" });
+          await invoke("set_aprs");
+        } catch (e) {
+          console.error(e);
+        }
+      } else if (t === "Iridium") {
+        const idx = activeIridiumModems.indexOf(val);
+        if (idx >= 0) activeIridiumModems.splice(idx, 1);
+        try {
+          await invoke("set_irr_modem", { id: "" });
+          await invoke("set_iridium");
+        } catch (e) {
+          console.error(e);
+        }
+      } else if (t === "WSPR") {
+        const idx = activeWsprCallsigns.indexOf(val);
+        if (idx >= 0) activeWsprCallsigns.splice(idx, 1);
+        try {
+          await invoke("set_wspr_callsign", { id: "" });
+          await invoke("set_wspr");
+        } catch (e) {
+          console.error(e);
+        }
       }
-      indicator.classList.remove('ok');
-      showConsole('Deactivated ' + val);
+      indicator.classList.remove("ok");
+      showConsole("Deactivated " + val);
       await updateConnectedClients();
       return;
     }
 
-    showConsole('Activating ' + val + '...');
+    // ACTIVATING
+    showConsole("Activating " + val + "..");
     await commitConnection();
-    activate.dataset.active = '1';
-    activate.innerText = 'Deactivate';
-    indicator.classList.add('pending');
-    setTimeout(async () => { await updateConnectionIndicators(); indicator.classList.remove('pending'); }, 1500);
+    activate.dataset.active = "1";
+    activate.innerText = "Deactivate";
+    ident.disabled = true;   // Disable input when activated
+    type.disabled = true;    // Disable type selector when activated
+    indicator.classList.add("pending");
+    setTimeout(async () => {
+      await updateConnectionIndicators();
+      indicator.classList.remove("pending");
+    }, 1500);
   });
 
   entry.appendChild(indicator);
@@ -799,98 +960,144 @@ function addConnection(container) {
 
 //------------------------------Connection Handlers------------------------------
 
-
 // update indicators for all connection entries by querying backend validity
 async function updateConnectionIndicators() {
   try {
-    const entries = document.querySelectorAll('.connection-entry');
+    const entries = document.querySelectorAll(".connection-entry");
     if (!entries || entries.length === 0) return;
 
-    const aprsValidity = await invoke('get_aprs_validity').catch(() => []);
-    const iridiumValidity = await invoke('get_iridium_validity').catch(() => []);
-    const savedAprsCallsign = await invoke('get_aprs_callsign').catch(()=>null);
-    const savedIrrModem = await invoke('get_irr_modem').catch(()=>null);
+    const aprsValidity = await invoke("get_aprs_validity").catch(() => []);
+    const iridiumValidity = await invoke("get_iridium_validity").catch(
+      () => [],
+    );
+    const wsprValidity = await invoke("get_wspr_validity").catch(() => []);
+    const savedAprsCallsign = await invoke("get_aprs_callsign").catch(
+      () => null,
+    );
+    const savedIrrModem = await invoke("get_irr_modem").catch(() => null);
+    const savedWsprCallsign = await invoke("get_wspr_callsign").catch(
+      () => null,
+    );
 
-    entries.forEach(entry => {
-      const sel = entry.querySelector('select');
-      const input = entry.querySelector('input');
-      const indicator = entry.querySelector('.conn-indicator');
+    entries.forEach((entry) => {
+      const sel = entry.querySelector("select");
+      const input = entry.querySelector("input");
+      const indicator = entry.querySelector(".conn-indicator");
       if (!sel || !input || !indicator) return;
       const t = sel.value;
       const id = input.value.trim();
 
       // clear pending marker if any
-      indicator.classList.remove('pending');
-      if (t === 'APRS') {
-
+      indicator.classList.remove("pending");
+      if (t === "APRS") {
         // Prefer exact match with the backend's stored callsign if available
         let isValid = false;
         if (savedAprsCallsign && id === savedAprsCallsign) {
-          isValid = aprsValidity.some(v => v === true);
-        } else if (aprsValidity.length > 0 && activeAprsCallsigns.length === aprsValidity.length) {
+          isValid = aprsValidity.some((v) => v === true);
+        } else if (
+          aprsValidity.length > 0 &&
+          activeAprsCallsigns.length === aprsValidity.length
+        ) {
           const idx = activeAprsCallsigns.indexOf(id);
-          isValid = (idx >= 0 && aprsValidity[idx]);
+          isValid = idx >= 0 && aprsValidity[idx];
         } else {
           // fallback: if any validity true, and we have only one active entry, mark it
-          if (aprsValidity.filter(Boolean).length === 1 && activeAprsCallsigns.length === 1 && activeAprsCallsigns[0] === id) isValid = true;
+          if (
+            aprsValidity.filter(Boolean).length === 1 &&
+            activeAprsCallsigns.length === 1 &&
+            activeAprsCallsigns[0] === id
+          )
+            isValid = true;
         }
-        if (isValid) indicator.classList.add('ok'); else indicator.classList.remove('ok');
-      } else if (t === 'Iridium') {
+        if (isValid) indicator.classList.add("ok");
+        else indicator.classList.remove("ok");
+      } else if (t === "Iridium") {
         let isValid = false;
         if (savedIrrModem && id === savedIrrModem) {
-          isValid = iridiumValidity.some(v => v === true);
-        } else if (iridiumValidity.length > 0 && activeIridiumModems.length === iridiumValidity.length) {
+          isValid = iridiumValidity.some((v) => v === true);
+        } else if (
+          iridiumValidity.length > 0 &&
+          activeIridiumModems.length === iridiumValidity.length
+        ) {
           const idx = activeIridiumModems.indexOf(id);
-          isValid = (idx >= 0 && iridiumValidity[idx]);
+          isValid = idx >= 0 && iridiumValidity[idx];
         } else {
-          if (iridiumValidity.filter(Boolean).length === 1 && activeIridiumModems.length === 1 && activeIridiumModems[0] === id) isValid = true;
+          if (
+            iridiumValidity.filter(Boolean).length === 1 &&
+            activeIridiumModems.length === 1 &&
+            activeIridiumModems[0] === id
+          )
+            isValid = true;
         }
-        if (isValid) indicator.classList.add('ok'); else indicator.classList.remove('ok');
+        if (isValid) indicator.classList.add("ok");
+        else indicator.classList.remove("ok");
+      } else if (t === "WSPR") {
+        let isValid = false;
+        if (savedWsprCallsign && id === savedWsprCallsign) {
+          isValid = wsprValidity.some((v) => v === true);
+        } else if (
+          wsprValidity.length > 0 &&
+          activeWsprCallsigns.length === wsprValidity.length
+        ) {
+          const idx = activeWsprCallsigns.indexOf(id);
+          isValid = idx >= 0 && wsprValidity[idx];
+        } else {
+          if (
+            wsprValidity.filter(Boolean).length === 1 &&
+            activeWsprCallsigns.length === 1 &&
+            activeWsprCallsigns[0] === id
+          )
+            isValid = true;
+        }
+        if (isValid) indicator.classList.add("ok");
+        else indicator.classList.remove("ok");
       } else {
-        indicator.classList.remove('ok');
+        indicator.classList.remove("ok");
       }
     });
   } catch (err) {
-    console.error('Error updating connection indicators:', err);
+    console.error("Error updating connection indicators:", err);
   }
 }
 
 //update UTC text and last-update placeholder
-export function updateInfo({utcText, lastUpdate, cityState}){
-    const u = document.getElementById('utc-msg');
-    const l = document.getElementById('last-update');
-    const c = document.getElementById('citystate');
-    if(u && utcText) u.textContent = utcText;
-    if(l && lastUpdate) l.textContent = lastUpdate;
-    if(c && cityState) c.textContent = cityState;
+export function updateInfo({ utcText, lastUpdate, cityState }) {
+  const u = document.getElementById("utc-msg");
+  const l = document.getElementById("last-update");
+  const c = document.getElementById("citystate");
+  if (u && utcText) u.textContent = utcText;
+  if (l && lastUpdate) l.textContent = lastUpdate;
+  if (c && cityState) c.textContent = cityState;
 }
 
 //helper to show short messages in the console area
-function showConsole(msg, timeout=4000) {
+function showConsole(msg, timeout = 4000) {
   if (console_text) {
     console_text.textContent = msg;
-    if (timeout > 0) setTimeout(()=>{ if (console_text && console_text.textContent === msg) console_text.textContent = ''; }, timeout);
+    if (timeout > 0)
+      setTimeout(() => {
+        if (console_text && console_text.textContent === msg)
+          console_text.textContent = "";
+      }, timeout);
   } else {
     console.log(msg);
   }
 }
 
-
 //------------------------------Map Functions/Handlers------------------------------
-
 
 //Init the map iframe
 function initMapIframe() {
-  const mapIframe = document.querySelector('.screen');
-  
+  const mapIframe = document.querySelector(".screen");
+
   // Set the iframe source to the map HTML file
-  mapIframe.src = 'map.html';
-  
-  window.addEventListener('message', (event) => {
+  mapIframe.src = "map.html";
+
+  window.addEventListener("message", (event) => {
     // Check if the map is ready
-    if (event.data && event.data.type === 'MAP_READY') {
-      console.log('Map is ready');
-      
+    if (event.data && event.data.type === "MAP_READY") {
+      console.log("Map is ready");
+
       // Send current position if we have it
       updateMapWithCurrentPosition();
     }
@@ -905,29 +1112,30 @@ async function updateMapWithCurrentPosition() {
     const altitude = await invoke("get_alt");
     const horiz = await invoke("get_horiz_vel");
     const vert = await invoke("get_vert_vel");
-    
+
     console.log(`Fetched velocities: H:${horiz} V:${vert}`);
-    
+
     if (currentLat !== 0 || currentLong !== 0) {
       updateMap(currentLat, currentLong, altitude, horiz, vert);
     }
   } catch (error) {
-    if (console_text) console_text.textContent = "Error getting position for map update:" + error;
+    if (console_text)
+      console_text.textContent =
+        "Error getting position for map update:" + error;
     else console.error("Error getting position for map update:", error);
   }
 }
 
 async function updateMap(latitude, longitude, altitude, horiz_vel, vert_vel) {
-  const mapIframe = document.querySelector('.screen');
-  
+  const mapIframe = document.querySelector(".screen");
+
   // Make sure iframe is loaded
   if (!mapIframe || !mapIframe.contentWindow) {
-    console.warn('Map iframe not ready');
+    console.warn("Map iframe not ready");
     return;
   }
-  
-  
-  if (typeof horiz_vel === 'undefined' || typeof vert_vel === 'undefined') {
+
+  if (typeof horiz_vel === "undefined" || typeof vert_vel === "undefined") {
     try {
       horiz_vel = await invoke("get_horiz_vel");
       vert_vel = await invoke("get_vert_vel");
@@ -937,32 +1145,37 @@ async function updateMap(latitude, longitude, altitude, horiz_vel, vert_vel) {
       vert_vel = 0;
     }
   }
-  mapIframe.contentWindow.postMessage({
-    type: 'UPDATE_POSITION',
-    lat: latitude,
-    lng: longitude,
-    lng: longitude,
-    alt: altitude,
-    horiz_vel: horiz_vel,
-  }, '*');
-  
-  
+  mapIframe.contentWindow.postMessage(
+    {
+      type: "UPDATE_POSITION",
+      lat: latitude,
+      lng: longitude,
+      lng: longitude,
+      alt: altitude,
+      horiz_vel: horiz_vel,
+    },
+    "*",
+  );
 }
-
 
 //------------------------------Compass Functions/Handlers------------------------------
 
 //gets the user location using a couple different methods
-async function getUserLocation(){
+async function getUserLocation() {
   try {
     // 1) Prefer explicit Ground Station inputs if the user puts it in the Settings panel
-    const gsInputs = document.querySelectorAll('.ground-station input');
+    const gsInputs = document.querySelectorAll(".ground-station input");
     if (gsInputs && gsInputs.length >= 2) {
       const latVal = gsInputs[0].value && gsInputs[0].value.trim();
       const lonVal = gsInputs[1].value && gsInputs[1].value.trim();
       const latNum = Number(latVal);
       const lonNum = Number(lonVal);
-      if (!Number.isNaN(latNum) && !Number.isNaN(lonNum) && latVal !== '' && lonVal !== '') {
+      if (
+        !Number.isNaN(latNum) &&
+        !Number.isNaN(lonNum) &&
+        latVal !== "" &&
+        lonVal !== ""
+      ) {
         return { latitude: latNum, longitude: lonNum };
       }
     }
@@ -971,92 +1184,110 @@ async function getUserLocation(){
       if (!navigator.geolocation) return resolve(null);
       const options = { timeout: 7000, maximumAge: 0 };
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve(pos && pos.coords ? { latitude: pos.coords.latitude, longitude: pos.coords.longitude } : null),
-        (err) => { console.warn(`Geolocation error: ${err && err.message}`); resolve(null); },
-        options
+        (pos) =>
+          resolve(
+            pos && pos.coords
+              ? {
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                }
+              : null,
+          ),
+        (err) => {
+          console.warn(`Geolocation error: ${err && err.message}`);
+          resolve(null);
+        },
+        options,
       );
     });
   } catch (err) {
-    console.warn('getUserLocation error:', err);
+    console.warn("getUserLocation error:", err);
     return null;
   }
 }
 
-function angleFromCoordinate(lat1, long1, lat2, long2){
+function angleFromCoordinate(lat1, long1, lat2, long2) {
   // compute bearing from (lat1,long1) -> (lat2,long2) in degrees (0 = north)
-  const toRad = (d) => d * Math.PI / 180;
-  const toDeg = (r) => r * 180 / Math.PI;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
   const t1 = toRad(lat1);
   const t2 = toRad(lat2);
   const delta = toRad(long2 - long1);
   const y = Math.sin(delta) * Math.cos(t2);
-  const x = Math.cos(t1) * Math.sin(t2) - Math.sin(t1) * Math.cos(t2) * Math.cos(delta);
+  const x =
+    Math.cos(t1) * Math.sin(t2) - Math.sin(t1) * Math.cos(t2) * Math.cos(delta);
   let theta = Math.atan2(y, x);
   theta = toDeg(theta);
   return (theta + 360) % 360;
 }
 
-async function updateCompass(lat, long){
+async function updateCompass(lat, long) {
   try {
     const ucoords = await getUserLocation();
-    if (ucoords && typeof ucoords.latitude === 'number' && typeof ucoords.longitude === 'number'){
+    if (
+      ucoords &&
+      typeof ucoords.latitude === "number" &&
+      typeof ucoords.longitude === "number"
+    ) {
       const ulat = ucoords.latitude;
       const ulong = ucoords.longitude;
       const bearing = angleFromCoordinate(ulat, ulong, lat, long);
-      if (typeof setCompassAngle === 'function') setCompassAngle(bearing);
+      if (typeof setCompassAngle === "function") setCompassAngle(bearing);
     } else {
-      if (console_text) console_text.textContent = 'Could not determine user location for compass';
+      if (console_text)
+        console_text.textContent =
+          "Could not determine user location for compass";
     }
   } catch (err) {
-    console.error('updateCompass error:', err);
+    console.error("updateCompass error:", err);
   }
 }
-
 
 //------------------------------Altitude Graph------------------------------
 
 //updates the alt graph
 function updateAltitudeGraph(time, alt) {
-    const iframe = document.getElementById('altitude-graph');
-    
-    iframe.contentWindow.postMessage({
-        type: 'ADD_DATA',
-        time: time,
-        alt: alt
-    }, '*'); 
+  const iframe = document.getElementById("altitude-graph");
+
+  iframe.contentWindow.postMessage(
+    {
+      type: "ADD_DATA",
+      time: time,
+      alt: alt,
+    },
+    "*",
+  );
 }
 
-
-
-
-
-
 function initThemeSelector() {
-    const themeSelect = document.querySelector('#settings select');
+  const themeSelect = document.querySelector("#settings select");
 
-    if (!themeSelect) return;
+  if (!themeSelect) return;
 
-    const savedTheme = localStorage.getItem('harp-theme') || 'light';
-    setTheme(savedTheme);
-    themeSelect.value = savedTheme.charAt(0).toUpperCase() + savedTheme.slice(1);
+  const savedTheme = localStorage.getItem("harp-theme") || "light";
+  setTheme(savedTheme);
+  themeSelect.value = savedTheme.charAt(0).toUpperCase() + savedTheme.slice(1);
 
-    themeSelect.addEventListener('change', (e) => {
-        const selectedValue = e.target.value.toLowerCase();
-        setTheme(selectedValue);
-    });
+  themeSelect.addEventListener("change", (e) => {
+    const selectedValue = e.target.value.toLowerCase();
+    setTheme(selectedValue);
+  });
 }
 
 function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('harp-theme', theme);
-    updateIframes(theme);
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("harp-theme", theme);
+  updateIframes(theme);
 }
 
 function updateIframes(theme) {
-    const iframes = document.querySelectorAll('iframe');
-    iframes.forEach(iframe => {
-        iframe.contentWindow.postMessage({ type: 'THEME_CHANGE', theme: theme }, '*');
-    });
+  const iframes = document.querySelectorAll("iframe");
+  iframes.forEach((iframe) => {
+    iframe.contentWindow.postMessage(
+      { type: "THEME_CHANGE", theme: theme },
+      "*",
+    );
+  });
 }
 function cleanup() {
   if (utcIntervalId) clearInterval(utcIntervalId);
@@ -1065,11 +1296,7 @@ function cleanup() {
   if (statusIntervalId) clearInterval(statusIntervalId);
 }
 
-
-
-
 // init app once DOM is loaded
 window.addEventListener("DOMContentLoaded", init);
 // Cleanup on page unload if needed
 window.addEventListener("beforeunload", cleanup);
-
