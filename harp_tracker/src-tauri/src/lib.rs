@@ -21,9 +21,12 @@ use std::env;
 use std::fs;
 use serde::{Serialize, Deserialize};
 use crate::connect_lib::{
-    ground_station::{gs_run, gs_disconnect, GsState},
+    ground_station::{
+        gs_run, gs_disconnect, gs_accept_offer, gs_reject_offer, gs_remove_client, GsState,
+    },
     client::{client_run, client_disconnect, ClientState},
     server::{start_signaling_server},
+    signaling,
 };
 
 pub struct Coords {
@@ -103,6 +106,22 @@ pub static STADIA_MAPS_API_KEY: Lazy<String> = Lazy::new(|| {
     }
     key
 });
+
+/// Whether a peer id is registered on the shared signaling server (works across app instances).
+#[tauri::command]
+async fn signaling_peer_online(peer_id: String) -> bool {
+    signaling::lookup_peer_online(&peer_id)
+        .await
+        .unwrap_or(false)
+}
+
+/// Debug: list peer ids currently on the signaling server.
+#[tauri::command]
+async fn list_signaling_peers() -> Vec<String> {
+    signaling::list_peers_remote()
+        .await
+        .unwrap_or_default()
+}
 
 // Return the current UTC time formatted
 #[tauri::command]
@@ -663,7 +682,15 @@ pub fn run() {
             set_predictor, get_predictor, run_prediction,
             get_stadia_api_key,
             get_aprsfi_api_key, set_aprsfi_api_key,
-            client_run, gs_run, client_disconnect, gs_disconnect
+            client_run,
+            gs_run,
+            client_disconnect,
+            gs_disconnect,
+            gs_accept_offer,
+            gs_reject_offer,
+            gs_remove_client,
+            signaling_peer_online,
+            list_signaling_peers,
         ])
 
         // Server iniatialization

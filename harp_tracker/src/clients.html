@@ -6,37 +6,46 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>HARP Tracker - Connected Clients</title>
     </head>
-    <body class = "clients_body">
+    <body class="clients_body">
         <div class="client_assignment" id="choose_panel">
             <h3>Choose your role</h3>
-            <button id="btn_gs" class="connect-btn">Ground Station</button>
-            <button id="btn_client" class="connect-btn">Client Node</button>
+            <button id="btn_gs" type="button">Ground Station</button>
+            <button id="btn_client" type="button">Client Node</button>
         </div>
- 
+
         <div class="gs_side" id="gs_panel">
             <h3>Ground Station</h3>
-            <div class = "id_field" id="gs_id_display"></div>
+            <p class="hint">Share this ID with client nodes:</p>
+            <div class="id_field" id="gs_id_display"></div>
 
-            <h3 class = "client_assignment">Available Clients</h3>
-            <p id = "gs_status" color="var(--warning)">No Clients Online</p>
-            <div id = "client_list">  
-            </div>
+            <h3 class="client_assignment">Incoming Offers</h3>
+            <p id="gs_pending_status">No pending offers</p>
+            <div id="pending_list"></div>
 
-            <button id = "btn_disconnect_gs">Disconnect</button>
+            <h3 class="client_assignment">Connected Clients</h3>
+            <p id="gs_status">Waiting for client offers…</p>
+            <div id="client_list"></div>
+
+            <button id="btn_disconnect_gs" type="button">Disconnect Ground Station</button>
         </div>
- 
+
         <div class="c_side" id="c_panel">
             <h3>Client</h3>
-            <div class = "id_field" id="c_id_display"></div>
-            <button id = "client_accept_id">Connect</button>
-            
-            <h3 class = "client_assignment">Ground Station Connection</h3>
-            <p id = "c_status" color="var(--warning)">Waiting for Ground Station Connection...</p>
-            
-            <div id = "gs_listed">
+            <p class="hint">Your client ID:</p>
+            <div class="id_field" id="c_id_display"></div>
+
+            <h3 class="client_assignment">Connect to Ground Station</h3>
+            <p id="c_status">Enter a Ground Station ID and connect.</p>
+            <div id="gs_listed">
                 <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
             </div>
-            <button id = "btn_disconnect_c">Disconnect</button>
+            <button id="client_accept_id" type="button">Connect</button>
+
+            <h3 class="client_assignment">Ground Station</h3>
+            <div id="c_gs_connection"></div>
+
+            <button id="btn_disconnect_c" type="button">Disconnect Client</button>
         </div>
-    <script type="module" src="connections.js"></script>
+        <script type="module" src="connections.js"></script>
     </body>
+</html>
