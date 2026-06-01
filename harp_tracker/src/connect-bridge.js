@@ -1,4 +1,4 @@
-// Forward Tauri events from the main window into the clients.html iframe.
+// forward tauri events from main window into clients.html iframe
 const tauriEvent = window.__TAURI__?.event;
 if (!tauriEvent) {
     console.warn('connect-bridge: Tauri event API unavailable');
@@ -11,13 +11,16 @@ if (!tauriEvent) {
         'gs-online',
         'client-error',
         'webrtc-ice-state',
+        'client-mode',
+        'gs-sync-full',
+        'gs-sync-position',
+        'gs-sync-prediction',
+        'gs-disconnected',
     ];
 
     function forwardToClientsIframe(eventName, payload) {
         const iframe = document.querySelector('iframe.clients_iframe');
-        if (!iframe?.contentWindow) {
-            return;
-        }
+        if (!iframe?.contentWindow) return;
         iframe.contentWindow.postMessage(
             { type: 'harp-connect-event', event: eventName, payload },
             '*'

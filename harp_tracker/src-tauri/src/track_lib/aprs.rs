@@ -48,22 +48,36 @@ impl APRS {
         );
 
         //make GET request to URL
-        let response: Value = self.client.get(&url).send()?.json()?;
+        let response: Value = self.client.get(&url).send().map_err(|e| {
+            eprintln!("APRS API Request Error: {}", url);
+            eprintln!("Error details: {}", e);
+            Box::new(e) as Box<dyn std::error::Error>
+        })?.json().map_err(|e| {
+            eprintln!("Failed to parse APRS response from: {}", url);
+            eprintln!("Error details: {}", e);
+            Box::new(e) as Box<dyn std::error::Error>
+        })?;
 
         // Check if request was successful
         if response["result"].as_str() != Some("ok") {
+            eprintln!("APRS API URL: {}", url);
+            eprintln!("APRS API Response: {}", response.to_string());
             return Err(format!("API error: {}", response["description"].as_str().unwrap_or("Unknown error")).into());
         }
 
         // any entries found?
         let found = response["found"].as_u64().unwrap_or(0);
         if found == 0 {
+            eprintln!("APRS API URL: {}", url);
+            eprintln!("APRS API Response: {}", response.to_string());
             return Err("No entries found for APRS".into());
         }
 
         // Extract the entries data
         if let Some(entries) = response["entries"].as_array() {
             if let Some(latest_entry) = entries.first() {
+                eprintln!("DEBUG: APRS entry raw data: {}", latest_entry.to_string());
+                
                 // Extract position data
                 let lat = latest_entry["lat"].as_str()
                     .and_then(|s| s.parse::<f64>().ok())
@@ -73,8 +87,35 @@ impl APRS {
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
                 
-                let alt = latest_entry["altitude"].as_f64()
+                // Try to extract altitude from various possible fields
+                let mut alt = latest_entry["altitude"].as_str()
+                    .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
+                if alt == 0.0 {
+                    alt = latest_entry["alt"].as_str()
+                        .and_then(|s| s.parse::<f64>().ok())
+                        .or_else(|| latest_entry["alt"].as_f64())
+                        .unwrap_or(0.0);
+                }
+                
+                // Try to parse altitude from comment field if it follows the format "A=XXXXX"
+                if alt == 0.0 {
+                    if let Some(comment_str) = latest_entry["comment"].as_str() {
+                        // Look for altitude pattern like "A=046181" (in feet)
+                        if let Some(a_pos) = comment_str.find("A=") {
+                            let after_a = &comment_str[a_pos + 2..];
+                            let alt_str: String = after_a.chars().take_while(|c| c.is_numeric()).collect();
+                            if let Ok(alt_feet) = alt_str.parse::<f64>() {
+                                alt = alt_feet * 0.3048; // Convert feet to meters
+                                eprintln!("APRS: Parsed altitude from comment: {} ft -> {} m", alt_feet, alt);
+                            }
+                        }
+                    }
+                }
+                
+                if alt == 0.0 {
+                    eprintln!("DEBUG: APRS altitude field not found in response, using 0.0");
+                }
                 
                 self.ground_speed = latest_entry["speed"].as_f64()
                     .unwrap_or(0.0);
@@ -88,9 +129,13 @@ impl APRS {
                         self.datetime = time;
                         // update position_time with velocities
                         self.position_time.update(lat, lon, alt, time as u64, self.ground_speed, self.vertical_velocity);
+                    } else {
+                        eprintln!("APRS: Failed to parse lasttime '{}' as f64", time_str);
+                        self.position_time.update(lat, lon, alt, 0, self.ground_speed, self.vertical_velocity);
                     }
                 } else {
                     // fallback update even if time missing
+                    eprintln!("APRS: lasttime field missing from API response");
                     self.position_time.update(lat, lon, alt, 0, self.ground_speed, self.vertical_velocity);
                 }
                 
@@ -117,6 +162,8 @@ impl APRS {
             }
         }
         
+        eprintln!("APRS API URL: {}", url);
+        eprintln!("APRS API Response: {}", response.to_string());
         Err("Failed to parse position data from response".into())
     }
     
@@ -138,5 +185,9 @@ impl APRS {
     
     pub fn get_comment(&self) -> &str {
         &self.comment
+    }
+
+    pub fn get_call_sign(&self) -> &str {
+        &self.call_sign
     }
 }

@@ -7,3 +7,5 @@ pub mod signaling;
 pub mod client;
 pub mod ground_station;
 pub mod gen;
+pub mod protocol;
+pub mod sync;

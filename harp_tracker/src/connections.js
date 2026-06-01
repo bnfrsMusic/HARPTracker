@@ -25,14 +25,21 @@ const gsPendingStatus = document.getElementById('gs_pending_status');
 const clientStatus = document.getElementById('c_status');
 
 const gsIdInput = document.getElementById('gs_id_input');
-const clientConnectBtn = document.getElementById('client_accept_id');
+const clientNameInput = document.getElementById('client_name_input');
 
 const pendingList = document.getElementById('pending_list');
 const connectedClientList = document.getElementById('client_list');
 const clientGsConnection = document.getElementById('c_gs_connection');
 
+const clientConnectBtn = document.getElementById('client_accept_id');
 const disconnectGsBtn = document.getElementById('btn_disconnect_gs');
 const disconnectClientBtn = document.getElementById('btn_disconnect_c');
+
+function notifyParent(eventName, payload) {
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'harp-connect-event', event: eventName, payload }, '*');
+    }
+}
 
 let currentRole = null;
 let gsRunning = false;
@@ -49,14 +56,14 @@ clientPanel.style.display = 'none';
 function setGsPendingStatus() {
     const n = pendingEntries.size;
     gsPendingStatus.textContent =
-        n === 0 ? 'No pending offers' : `${n} offer${n === 1 ? '' : 's'} awaiting acceptance`;
+        n === 0 ? 'Offers are accepted automatically' : `${n} handshake${n === 1 ? '' : 's'} in progress…`;
 }
 
 function setGsConnectedStatus() {
     const n = connectedEntries.size;
     gsStatus.textContent =
         n === 0
-            ? 'Online — waiting for client offers'
+            ? 'Online — waiting for clients'
             : `Connected to ${n} client${n === 1 ? '' : 's'}`;
 }
 
@@ -127,35 +134,14 @@ function showPendingClient(id) {
         return;
     }
 
-    const entry = makePeerEntry(id, `Client offer: ${id}`, {
+    const entry = makePeerEntry(id, `Connecting: ${id}`, {
         indicatorClass: 'pending',
-        onAccept: async () => {
-            try {
-                await invoke('gs_accept_offer', { nodeId: id });
-                removeEntry(pendingEntries, id);
-                setGsPendingStatus();
-                gsStatus.textContent = `Accepted ${id} — completing WebRTC handshake…`;
-            } catch (err) {
-                console.error('Accept offer failed:', err);
-                gsStatus.textContent = `Failed to accept ${id}: ${err}`;
-            }
-        },
-        onReject: async () => {
-            try {
-                await invoke('gs_reject_offer', { nodeId: id });
-            } catch (err) {
-                console.error('Reject offer failed:', err);
-            } finally {
-                removeEntry(pendingEntries, id);
-                setGsPendingStatus();
-            }
-        },
     });
 
     pendingList.appendChild(entry);
     pendingEntries.set(id, entry);
     setGsPendingStatus();
-    gsStatus.textContent = `Incoming offer from ${id} — click Accept`;
+    gsStatus.textContent = `Client ${id} connecting…`;
 }
 
 function showNewClient({ id, role, name }) {
@@ -163,7 +149,9 @@ function showNewClient({ id, role, name }) {
     removeEntry(pendingEntries, id);
     if (connectedEntries.has(id)) return;
 
-    const label = name ? `${role} (${name}): ${id}` : `${role}: ${id}`;
+    const label = name
+        ? `${name} — ${id}`
+        : `${role}: ${id}`;
     const entry = makePeerEntry(id, label, {
         indicatorClass: 'ok',
         onRemove: async () => {
@@ -201,14 +189,28 @@ function handleConnectEvent(eventName, payload) {
         case 'new-gs':
             if (currentRole === 'client') {
                 clientGsConnection.replaceChildren();
-                const entry = makePeerEntry(
-                    payload.id,
-                    `${payload.role}: ${payload.id}`,
-                    { indicatorClass: 'ok' }
-                );
+                const gsLabel = payload.name
+                    ? `${payload.name} (${payload.id})`
+                    : `${payload.role}: ${payload.id}`;
+                const entry = makePeerEntry(payload.id, gsLabel, { indicatorClass: 'ok' });
                 clientGsConnection.appendChild(entry);
-                clientStatus.textContent = `Linked to ${payload.id}`;
+                clientStatus.textContent = `Receiving data from ${payload.id}`;
+                notifyParent('client-mode', { connected: true });
             }
+            break;
+        case 'client-mode':
+            if (currentRole === 'client') {
+                notifyParent('client-mode', payload);
+                if (payload.connected) {
+                    clientStatus.textContent = 'Connected — receiving flight data';
+                }
+            }
+            break;
+        case 'gs-sync-full':
+        case 'gs-sync-position':
+        case 'gs-sync-prediction':
+        case 'gs-disconnected':
+            notifyParent(eventName, payload);
             break;
         case 'gs-online':
             if (currentRole === 'gs') {
@@ -290,6 +292,11 @@ async function setupEventListeners() {
         'gs-online',
         'client-error',
         'webrtc-ice-state',
+        'client-mode',
+        'gs-sync-full',
+        'gs-sync-position',
+        'gs-sync-prediction',
+        'gs-disconnected',
     ];
 
     for (const eventName of events) {
@@ -357,8 +364,7 @@ async function startGroundStation() {
         gsIdDisplay.textContent = generatedId;
         await showGsSignalingHints();
         gsRunning = true;
-        gsStatus.textContent =
-            'Online — share this ID, wait for offers, then click Accept';
+        gsStatus.textContent = 'Online — clients connect automatically';
         setGsPendingStatus();
         startPendingPoll();
     } catch (error) {
@@ -426,12 +432,16 @@ async function startClient() {
             return;
         }
 
-        clientStatus.textContent = 'Ground Station found — sending offer…';
-        const generatedId = await invoke('client_run', { gsId });
+        clientStatus.textContent = 'Ground Station found — connecting…';
+        const clientName = clientNameInput?.value?.trim() || '';
+        if (clientName) {
+            localStorage.setItem('harp_client_name', clientName);
+        }
+        const generatedId = await invoke('client_run', { gsId, clientName });
         clientIdDisplay.textContent = generatedId;
         clientRunning = true;
-        clientStatus.textContent =
-            `Offer sent as ${generatedId} — waiting for Ground Station to Accept`;
+        clientStatus.textContent = `Connecting as ${generatedId}…`;
+        if (clientNameInput) clientNameInput.disabled = true;
     } catch (error) {
         console.error('Error running Client:', error);
         clientStatus.textContent = `Failed to connect: ${error}`;
@@ -451,8 +461,8 @@ function resetUi() {
     gsIdDisplay.textContent = '';
     if (gsSignalingUrls) gsSignalingUrls.textContent = '';
     clientIdDisplay.textContent = '';
-    gsStatus.textContent = 'Waiting for client offers…';
-    gsPendingStatus.textContent = 'No pending offers';
+    gsStatus.textContent = 'Waiting for clients…';
+    gsPendingStatus.textContent = 'Offers are accepted automatically';
     clientStatus.textContent = 'Enter a Ground Station ID and connect.';
 
     pendingList.replaceChildren();
@@ -463,6 +473,9 @@ function resetUi() {
 
     clientConnectBtn.disabled = false;
     gsIdInput.disabled = false;
+    if (clientNameInput) clientNameInput.disabled = false;
+
+    notifyParent('client-mode', { connected: false });
 
     currentRole = null;
     gsRunning = false;
@@ -476,6 +489,7 @@ async function handleDisconnect(role) {
             await invoke('gs_disconnect');
         } else if (role === 'client' && clientRunning) {
             await invoke('client_disconnect');
+            notifyParent('client-mode', { connected: false });
         }
     } catch (error) {
         console.error('Disconnect error:', error);
@@ -551,6 +565,10 @@ if (savedTheme) {
 const savedSignalingHost = localStorage.getItem('harp_signaling_host');
 if (savedSignalingHost && signalingHostInput) {
     signalingHostInput.value = savedSignalingHost;
+}
+const savedClientName = localStorage.getItem('harp_client_name');
+if (savedClientName && clientNameInput) {
+    clientNameInput.value = savedClientName;
 }
 if (signalingHostInput) {
     signalingHostInput.addEventListener('change', () => {

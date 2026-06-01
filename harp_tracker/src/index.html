@@ -1,131 +1,166 @@
-<!DOCTYPE html>
-<html lang="en">    
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HARP Tracker</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="stylesheet" href="styles.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>HARP Tracker</title>
+    </head>
 
-<body>
-
-    <div class="header">
-        <div class="compass-container" id="compass-top-left"></div>
-        <h1>HARP TRACKER</h1>
-    </div>
-
-    <div class="grandparent">
-        <div class="div1">
-            <div class="parent">
-                <div class="div3">
-                    <section class="map-section">
-                        <div class="map-frame">
-                            <iframe class="screen" src="map.html" title="Map"></iframe>
-                            <div class="map-footer">
-                                <p id="utc-msg">UTC</p>
-                                <p id="last-update">Last update</p>
-                                <p id="citystate">Location</p>
-                            </div>
-                        </div>
-                    </section>
+    <body>
+        <div class="app-container">
+            <!-- Header with compass on the left -->
+            <header class="app-header">
+                <div class="header-left">
+                    <div class="compass-container" id="compass-top-left"></div>
                 </div>
-                <div class="div4">
-                    <div class="altitude-box">
-                        <h2>Altitude Graph</h2>
-                        <iframe id="altitude-graph" src="alt-graph.html"></iframe>
-                    </div>
-                </div>
-                <div class="div5">
-                    <div class="quickcontrols-box">
-                        <h2>Quick Controls</h2>
-                        <label>Data Filtering
-                            <select id="filtering-method">
-                                <option>Recent</option>
-                                <option selected>Average</option>
-                                <option>Median</option>
-                            </select>
-                        </label>
-                        <label>Aircraft Display Radius (km)
-                            <input id="aircraft-radius-km" type="text" value="100">
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
+                <h1>HARP TRACKER</h1>
+            </header>
 
-        <div class="div2">
+            <!-- Right sidebar with tabs -->
             <nav class="panels">
                 <div class="side-tabs" aria-hidden="false">
-                    <button class="side-tab" data-panel="connections"><span>Connections</span></button>
-                    <button class="side-tab" data-panel="controls"><span>Controls</span></button>
-                    <button class="side-tab" data-panel="predictions"><span>Predictions</span></button>
-                    <button class="side-tab" data-panel="settings"><span>Settings</span></button>
+                    <button class="side-tab" data-panel="connections">
+                        <span>Connections</span>
+                    </button>
+                    <button class="side-tab" data-panel="controls">
+                        <span>Controls</span>
+                    </button>
+                    <button class="side-tab" data-panel="predictions" id="predictions-tab">
+                        <span>Predictions</span>
+                    </button>
+                    <button class="side-tab" data-panel="settings">
+                        <span>Settings</span>
+                    </button>
                 </div>
             </nav>
 
+            <!-- Panel contents -->
             <div class="panel-contents" id="panel-contents">
                 <section id="connections" class="panel">
                     <h2>Connections</h2>
+                    <div id="connection-tracking">
                     <div class="connections-list" id="connections-list"></div>
-                    <div style="margin-top:8px; display:flex; justify-content:flex-end;"><button id="add-connection">Add Connection</button></div>
+                    <div
+                        style="
+                            margin-top: 8px;
+                            display: flex;
+                            justify-content: flex-end;
+                            gap: 8px;
+                            align-items: center;
+                        "
+                    >
+                        <button id="add-connection">Add Connection</button>
+                    </div>
+                    </div>
 
-                    <h3 style="color: var(--danger); margin-top:12px;">Connected Clients</h3>
-                    <iframe class = "clients_iframe" src = "clients.html"> </iframe>
+                    <h3 style="margin-top: 12px">Remote Connection</h3>
+                    <iframe class="clients_iframe" src="clients.html" title="Remote clients"></iframe>
                 </section>
 
                 <section id="controls" class="panel">
                     <h2>Controls</h2>
+
                     <h3>⚠️ AREA UNDER CONSTRUCTION ⚠️</h3>
-                    <div class="joystick-area"></div>
+
+                    <div class="joystick-area">
+                        <!-- <div class="joystick placeholder">Joystick Control (Not implemented)</div> -->
+                        <!-- <div class="tracking-toggle">Tracking: <button>Toggle</button></div> -->
+                    </div>
+
+                    <!-- <div class="venting placeholder" style="color: #c0392b">Venting Commands (Not implemented)</div> -->
                 </section>
 
                 <section id="predictions" class="panel">
                     <h2>Predictions</h2>
-                    <label><span>Algorithm</span>
+                    <label
+                        ><span>Algorithm</span>
                         <select id="prediction-algo">
                             <option value="SondeHub">SondeHub (Tawhiri)</option>
                         </select>
                     </label>
-                    <label><span>Weather Model</span><select><option>GFS</option></select></label>
+                    <label
+                        ><span>Weather Model</span
+                        ><select>
+                            <option>GFS</option>
+                        </select></label
+                    >
 
                     <div class="payload-params">
-                        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Payload Parameters</h3>
-                        <label><span id="label-payload-mass">Payload mass (kg)</span><input type="number" id="param-payload-mass" step="0.1" placeholder="2.0"></label>
-                        <label><span id="label-balloon-mass">Balloon mass (kg)</span><input type="number" id="param-balloon-mass" step="0.1" placeholder="1.5"></label>
-                        <label><span>Parachute drag coeff</span><input type="number" id="param-parachute-drag" step="0.01" placeholder="0.5"></label>
-                        <label><span id="label-burst-alt">Burst altitude (m)</span><input type="number" id="param-burst-alt" step="100" placeholder="30000"></label>
-                        <label><span id="label-ascent-rate">Ascent rate (m/s)</span><input type="number" id="param-ascent-rate" step="0.1" placeholder="auto"></label>
-                        <label><span id="label-descent-rate">Descent rate (m/s)</span><input type="number" id="param-descent-rate" step="0.1" placeholder="5.0"></label>
+                        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem">
+                            Payload Parameters
+                        </h3>
+                        <label
+                            ><span>Payload mass (kg)</span
+                            ><input type="text" step="0.1" placeholder="2.0"
+                        /></label>
+                        <label
+                            ><span>Balloon mass (kg)</span
+                            ><input type="text" step="0.1" placeholder="1.5"
+                        /></label>
+                        <label
+                            ><span>Parachute drag coeff</span
+                            ><input type="text" step="0.01" placeholder="0.5"
+                        /></label>
+                        <label
+                            ><span>Burst altitude (m)</span
+                            ><input type="text" step="100" placeholder="30000"
+                        /></label>
+                        <label
+                            ><span>Descent rate (m/s)</span
+                            ><input type="text" step="0.1" placeholder="5.0"
+                        /></label>
                     </div>
 
-                    <div class="run-controls" style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                    <div
+                        class="run-controls"
+                        style="
+                            display: flex;
+                            gap: 8px;
+                            justify-content: flex-end;
+                            margin-top: 12px;
+                        "
+                    >
                         <button id="run-prediction-btn">Run Predictions</button>
+                        <button id="auto-prediction-btn">AUTO</button>
                     </div>
                 </section>
 
                 <section id="settings" class="panel">
                     <h2>Settings</h2>
-                    <label><span>Theme</span><select><option>Light</option><option>Dark</option></select></label>
-                    <label><span>Color Scheme</span><select><option>Simple</option></select></label>
-                    <label><span>Units</span><select id="units-selector"><option value="metric">Metric</option><option value="imperial">Imperial</option></select></label>
+                    <label
+                        ><span>Theme</span
+                        ><select>
+                            <option>Light</option>
+                            <option>Dark</option>
+                        </select></label
+                    >
+                    <label
+                        ><span>Color Scheme</span
+                        ><select>
+                            <option>Simple</option>
+                        </select></label
+                    >
+                    <label
+                        ><span>Units</span
+                        ><select>
+                            <option>Metric</option>
+                            <option>Imperial</option>
+                        </select></label
+                    >
 
-                    <div class="ground-station" style="margin-top:0.8rem;">
+                    <div class="ground-station" style="margin-top: 0.8rem">
                         <h3>Ground Station</h3>
-                        <label><span>Lat</span><input type="text" id="ground-lat"></label>
-                        <label><span>Lon</span><input type="text" id="ground-lon"></label>
-                        <label><span id="label-ground-alt">Alt (m)</span><input type="text" id="ground-alt"></label>
+                        <label><span>Lat</span><input type="text" /></label>
+                        <label><span>Lon</span><input type="text" /></label>
+                        <label><span>Alt</span><input type="text" /></label>
+                        <button id="request-location-btn" style="margin-top: 8px; width: 100%;">Request Location</button>
                     </div>
 
                     <div class="serial-ports">
                         <h3>Serial Comm Ports</h3>
-                        <label><span>RFD</span><input type="text"></label>
-                        <label><span>Arduino</span><input type="text"></label>
-                    </div>
-
-                    <div class="api-keys">
-                        <h3>API Keys</h3>
-                        <label><span>aprs.fi</span><input id="aprsfi-api-key" type="text" placeholder="optional"></label>
-                        <label><span>stadiamaps</span><input id="stadia-api-key" type="text" placeholder="optional"></label>
+                        <label><span>RFD</span><input type="text" /></label>
+                        <label><span>Arduino</span><input type="text" /></label>
                     </div>
 
                     <div class="credits">
@@ -133,42 +168,111 @@
                         <label>
                             <span>Tracking APIs</span>
                             <label>
-                                <a href="https://aprs.fi/" target="_blank">aprs.fi</a>
-                                <a href="https://www.sondehub.org/" target="_blank">SondeHub</a>
+                                <a href="https://aprs.fi/" target="_blank"
+                                    >aprs.fi</a
+                                >
+                                <a
+                                    href="https://www.sondehub.org/"
+                                    target="_blank"
+                                    >SondeHub</a
+                                >
+                                <a href="https://wsprlive.org/" target="_blank"
+                                    >WSPRlive</a
+                                >
                             </label>
                         </label>
                         <label>
                             <span>Map Layers</span>
                             <label>
-                                <a href="https://www.rainviewer.com/api.html" target="_blank">RainViewer</a>
-                                <a href="https://opensky-network.org/" target="_blank">OpenSky</a>
-                                <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>
+                                <a
+                                    href="https://www.rainviewer.com/api.html"
+                                    target="_blank"
+                                    >RainViewer</a
+                                >
+                                <a
+                                    href="https://opensky-network.org/"
+                                    target="_blank"
+                                    >OpenSky</a
+                                >
+                                <a
+                                    href="https://stadiamaps.com/"
+                                    target="_blank"
+                                    >Stadia Maps</a
+                                >
                             </label>
                         </label>
                         <label>
                             <span>Map APIs</span>
                             <label>
-                                <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a>
-                                <a href="https://leafletjs.com/" target="_blank">Leaflet</a>
+                                <a
+                                    href="https://www.openstreetmap.org/"
+                                    target="_blank"
+                                    >OpenStreetMap</a
+                                >
+                                <a href="https://leafletjs.com/" target="_blank"
+                                    >Leaflet</a
+                                >
                             </label>
                         </label>
-                        <label>Made with love by Ayush Sahoo and Samhita Saragadam</label>
+                        <label
+                            >Made with love by Ayush Sahoo and Samhita
+                            Saragadam</label
+                        >
                     </div>
                 </section>
             </div>
+
+            <!-- Main content area -->
+            <main class="main-content">
+                <!-- Left: Map -->
+                <section class="map-section">
+                    <div class="map-frame">
+                        <iframe
+                            class="screen"
+                            src="map.html"
+                            title="Map"
+                        ></iframe>
+                        <div class="map-footer">
+                            <p id="utc-msg">UTC</p>
+                            <p id="last-update">Last update</p>
+                            <p id="citystate">Location</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Right: Altitude Graph and Predictions -->
+                <section class="right-panels">
+                    <div class="altitude-box">
+                        <h2>Altitude Graph</h2>
+                        <iframe
+                            id="altitude-graph"
+                            src="alt-graph.html"
+                        ></iframe>
+                    </div>
+
+                    <div class="predictions-box">
+                        <h2>Prediction Controls</h2>
+                        <label
+                            >Filtering
+                            <select id="filtering-method">
+                                <option>Recent</option>
+                                <option selected>Average</option>
+                                <option>Median</option>
+                            </select>
+                        </label>
+                        <button id="run-prediction-btn">Run Predictions</button>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Console text at bottom -->
+            <div class="console-area">
+                <p id="console-text">console text</p>
+            </div>
         </div>
-    </div>
 
-    <div class="status">
-        <div class="console-area">
-            <p id="console-text">console text</p>
-        </div>
-    </div>
-
-    <script type="module" src="compass.js" defer></script>
-    <script type="module" src="connect-bridge.js" defer></script>
-    <script type="module" src="main.js" defer></script>
-
-</body>
-
+        <script type="module" src="compass.js" defer></script>
+        <script type="module" src="connect-bridge.js" defer></script>
+        <script type="module" src="main.js" defer></script>
+    </body>
 </html>

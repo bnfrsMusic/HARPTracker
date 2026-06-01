@@ -32,7 +32,7 @@ use crate::connect_lib::{
         gs_remove_client,
         GsState,
     },
-    client::{client_run, client_disconnect, ClientState},
+    client::{client_run, client_disconnect, is_client_connected, ClientState},
     server::{start_signaling_server},
     signaling::{self, set_signal_server_url},
 };
@@ -49,7 +49,7 @@ impl Default for Coords {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TrackingPoint {
     lat: f64,
     lon: f64,
@@ -58,7 +58,7 @@ pub struct TrackingPoint {
     track_type: String
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PredictionPoint {
     lat: f64,
     lon: f64,
@@ -66,7 +66,7 @@ pub struct PredictionPoint {
     time: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PredictionData {
     ascent: Vec<PredictionPoint>,
     burst: Option<PredictionPoint>,
@@ -88,6 +88,7 @@ impl Coords {
 // Globals
 pub static IRIDIUM_MODEM: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 pub static APRS_CALLSIGN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+pub static WSPR_CALLSIGN: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 pub static TRACKER: Lazy<Mutex<Tracker>> = Lazy::new(|| Mutex::new(Tracker::new()));
 pub static LOCATION: Lazy<Mutex<Coords>> = Lazy::new(|| Mutex::new(Coords::new()));
 pub static FILTERING_METHOD: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::from("Recent")));
@@ -293,6 +294,35 @@ fn set_iridium() -> bool {
     }
 }
 
+// Set the WSPR callsign
+#[tauri::command]
+fn set_wspr_callsign(id: String) {
+    println!("Setting WSPR_CALLSIGN to: {}", id);
+    *WSPR_CALLSIGN.lock().unwrap() = id;
+}
+
+// Get the WSPR callsign
+#[tauri::command]
+fn get_wspr_callsign() -> String {
+    let callsign = WSPR_CALLSIGN.lock().unwrap().to_string();
+    println!("WSPR CALLSIGN: {}", callsign);
+    callsign
+}
+
+// Init WSPR with current callsign
+#[tauri::command]
+fn set_wspr() -> bool {
+    let wspr_call = WSPR_CALLSIGN.lock().unwrap();
+    if !wspr_call.is_empty() {
+        println!("Setting up WSPR with callsign: {}", wspr_call);
+        TRACKER.lock().unwrap().new_wspr(wspr_call.as_str());
+        true
+    } else {
+        println!("Cannot set up WSPR: callsign is empty");
+        false
+    }
+}
+
 // Update tracker position
 #[tauri::command]
 fn update() -> String {
@@ -332,6 +362,13 @@ fn update() -> String {
              velocities.0, velocities.1, last_update);
     
     drop(tracker_guard);
+
+    if connect_lib::sync::connected_client_count() > 0 {
+        tauri::async_runtime::spawn(async {
+            connect_lib::sync::broadcast_position().await;
+        });
+    }
+
     r
 }
 
@@ -430,6 +467,21 @@ fn is_iridium_active() -> bool{
     return false;
 }
 
+//Returns if WSPR is currently active
+#[tauri::command]
+fn is_wspr_active() -> bool {
+    let a = TRACKER.try_lock().unwrap().return_wspr();
+    for wspr in a {
+        if wspr.is_some() {
+            let w = wspr.unwrap();
+            if w.get_last_update() != 0 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 // Get current filtering method
 #[tauri::command]
 fn get_filtering_method() -> String {
@@ -460,6 +512,18 @@ fn get_sondehub_count() -> usize {
     TRACKER.try_lock().unwrap().return_sondehub().iter().filter(|s| s.is_some()).count()
 }
 
+/// count of active WSPR instances
+#[tauri::command]
+fn get_wspr_count() -> usize {
+    TRACKER
+        .try_lock()
+        .unwrap()
+        .return_wspr()
+        .iter()
+        .filter(|w| w.is_some())
+        .count()
+}
+
 /// Check if APRS instances have legit position data
 #[tauri::command]
 fn get_aprs_validity() -> Vec<bool> {
@@ -484,9 +548,50 @@ fn get_iridium_validity() -> Vec<bool> {
     }).collect()
 }
 
-///Read most recent CSV file from the Launch Data folder and return tracking points
+/// Check if WSPR instances have legit position data
+/// Also checks SondeHub instances with source_type="WSPR" since WSPR may be disabled
 #[tauri::command]
-fn get_tracking_history() -> Vec<TrackingPoint> {
+fn get_wspr_validity() -> Vec<bool> {
+    let mut wspr_tracker = TRACKER.try_lock().unwrap();
+
+    let wspr_validity: Vec<bool> = wspr_tracker
+        .return_wspr()
+        .iter()
+        .map(|w| {
+            if let Some(wspr) = w {
+                wspr.get_last_update() != 0
+            } else {
+                false
+            }
+        })
+        .collect();
+
+    let sondehub_wspr_validity: Vec<bool> = wspr_tracker
+        .return_sondehub()
+        .iter()
+        .filter(|s| {
+            if let Some(sondehub) = s {
+                sondehub.get_source_type() == "WSPR"
+            } else {
+                false
+            }
+        })
+        .map(|s| {
+            if let Some(sondehub) = s {
+                sondehub.get_last_update() != 0
+            } else {
+                false
+            }
+        })
+        .collect();
+
+    let mut result = wspr_validity;
+    result.extend(sondehub_wspr_validity);
+    result
+}
+
+///Read most recent CSV file from the Launch Data folder and return tracking points
+pub fn read_tracking_history() -> Vec<TrackingPoint> {
     let current_dir = std::env::current_dir().expect("Could not determine current directory");
     let folder_path = current_dir.join("Launch Data");
     
@@ -544,6 +649,11 @@ fn get_tracking_history() -> Vec<TrackingPoint> {
     
     points.sort_by_key(|p| p.time);
     points
+}
+
+#[tauri::command]
+fn get_tracking_history() -> Vec<TrackingPoint> {
+    read_tracking_history()
 }
 
 // ==================== Prediction Commands ====================
@@ -629,7 +739,7 @@ fn run_prediction() -> Result<PredictionData, String> {
     let predictor_name = manager.get_predictor().to_string();
     let params = manager.get_params().clone();
     
-    let result = match predictor_name.as_str() {
+    let pred_result = match predictor_name.as_str() {
         "SondeHub" => {
             manager.run_prediction(&current_pos, &*SONDEHUB_PREDICTOR)
         },
@@ -638,7 +748,7 @@ fn run_prediction() -> Result<PredictionData, String> {
         }
     };
     
-    match result {
+    let output = match pred_result {
         Ok(pred_result) => {
             println!("Prediction completed successfully");
             
@@ -692,7 +802,16 @@ fn run_prediction() -> Result<PredictionData, String> {
             println!("Prediction failed: {}", e);
             Err(format!("Prediction failed: {}", e))
         }
+    };
+
+    if let Ok(ref data) = output {
+        let data = data.clone();
+        tauri::async_runtime::spawn(async move {
+            connect_lib::sync::broadcast_prediction(data).await;
+        });
     }
+
+    output
 }
 
 // Application run
@@ -708,15 +827,16 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             utc, date, 
             set_irr_modem, get_irr_modem, 
-            set_aprs_callsign, get_aprs_callsign, 
-            set_aprs, set_iridium,
+            set_aprs_callsign, get_aprs_callsign,
+            set_wspr_callsign, get_wspr_callsign,
+            set_aprs, set_iridium, set_wspr,
             update, 
             get_position, get_lat, get_long, get_alt,
             get_horiz_vel, get_vert_vel,
-            get_last_update, is_aprs_active, is_iridium_active,
+            get_last_update, is_aprs_active, is_iridium_active, is_wspr_active,
             get_filtering_method, set_filtering_method,
-            get_aprs_count, get_iridium_count, get_sondehub_count,
-            get_aprs_validity, get_iridium_validity,
+            get_aprs_count, get_iridium_count, get_sondehub_count, get_wspr_count,
+            get_aprs_validity, get_iridium_validity, get_wspr_validity,
             get_tracking_history,
             set_prediction_params, get_prediction_params,
             set_predictor, get_predictor, run_prediction,
@@ -725,6 +845,7 @@ pub fn run() {
             client_run,
             gs_run,
             client_disconnect,
+            is_client_connected,
             gs_disconnect,
             gs_list_pending_offers,
             gs_accept_offer,

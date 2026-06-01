@@ -36,11 +36,11 @@
             <div class="id_field" id="gs_signaling_urls"></div>
 
             <h3 class="client_assignment">Incoming Offers</h3>
-            <p id="gs_pending_status">No pending offers</p>
+            <p id="gs_pending_status">Offers are accepted automatically</p>
             <div id="pending_list"></div>
 
             <h3 class="client_assignment">Connected Clients</h3>
-            <p id="gs_status">Waiting for client offers…</p>
+            <p id="gs_status">Waiting for clients…</p>
             <div id="client_list"></div>
 
             <button id="btn_disconnect_gs" type="button">Disconnect Ground Station</button>
@@ -48,12 +48,15 @@
 
         <div class="c_side" id="c_panel">
             <h3>Client</h3>
-            <p class="hint">Your client ID:</p>
+            <p class="hint">Your display name (shown on Ground Station):</p>
+            <input type="text" id="client_name_input" placeholder="e.g. Field Team Alpha" />
+
+            <p class="hint">Your client ID (auto-generated on connect):</p>
             <div class="id_field" id="c_id_display"></div>
 
             <h3 class="client_assignment">Connect to Ground Station</h3>
             <p id="c_status">Enter signaling host and Ground Station ID.</p>
-            <label class="hint" for="signaling_host_input">Signaling server (Ground Station PC)</label>
+            <label class="hint" for="signaling_host_input">Signaling server (Ground Station PC IP or 127.0.0.1)</label>
             <input type="text" id="signaling_host_input" placeholder="127.0.0.1 or 192.168.x.x" />
             <div id="gs_listed">
                 <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
