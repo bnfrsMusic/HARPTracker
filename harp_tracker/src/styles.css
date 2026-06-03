@@ -547,6 +547,23 @@ body.clients_body {
     padding: 1rem;
 }
 
+.clients_body .turn_settings {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--glass-border);
+}
+
+.clients_body .turn_settings summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.clients_body .turn_settings input[type="text"],
+.clients_body .turn_settings input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .client_assignment, .gs_side, .c_side {
     display: flex;
     flex-direction: column;
@@ -560,6 +577,7 @@ body.clients_body {
     background: var(--butt-drop-bg);
     transition: border-color 0.2s, box-shadow 0.2s;
     color: var(--text-main);
+    user-select: text;
 }
 
 input[type="text"],

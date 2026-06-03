@@ -21,12 +21,20 @@ use std::env;
 use std::fs;
 use serde::{Serialize, Deserialize};
 use crate::connect_lib::{
+    config::{self, SignalingConnectHints},
+    ice_config::{self, TurnConfigView},
     ground_station::{
-        gs_run, gs_disconnect, gs_accept_offer, gs_reject_offer, gs_remove_client, GsState,
+        gs_run,
+        gs_disconnect,
+        gs_list_pending_offers,
+        gs_accept_offer,
+        gs_reject_offer,
+        gs_remove_client,
+        GsState,
     },
     client::{client_run, client_disconnect, ClientState},
     server::{start_signaling_server},
-    signaling,
+    signaling::{self, set_signal_server_url},
 };
 
 pub struct Coords {
@@ -107,10 +115,42 @@ pub static STADIA_MAPS_API_KEY: Lazy<String> = Lazy::new(|| {
     key
 });
 
+/// Addresses to share with remote clients (LAN ws:// URLs).
+#[tauri::command]
+fn get_signaling_connect_hints() -> SignalingConnectHints {
+    config::signaling_connect_hints()
+}
+
+/// Set signaling server target (IP, host:port, or ws:// URL). Returns normalized URL.
+#[tauri::command]
+fn set_signal_server_host(host_or_url: String) -> Result<String, String> {
+    set_signal_server_url(&host_or_url)
+}
+
+#[tauri::command]
+fn get_signal_server_url() -> String {
+    signaling::current_signal_server_url()
+}
+
+#[tauri::command]
+fn get_turn_config() -> TurnConfigView {
+    ice_config::get_turn_config_view()
+}
+
+#[tauri::command]
+fn set_turn_config(
+    turn_urls: String,
+    username: String,
+    credential: String,
+    force_relay: bool,
+) -> Result<(), String> {
+    ice_config::set_turn_config(turn_urls, username, credential, force_relay)
+}
+
 /// Whether a peer id is registered on the shared signaling server (works across app instances).
 #[tauri::command]
 async fn signaling_peer_online(peer_id: String) -> bool {
-    signaling::lookup_peer_online(&peer_id)
+    signaling::lookup_peer_online(peer_id.trim())
         .await
         .unwrap_or(false)
 }
@@ -686,18 +726,25 @@ pub fn run() {
             gs_run,
             client_disconnect,
             gs_disconnect,
+            gs_list_pending_offers,
             gs_accept_offer,
             gs_reject_offer,
             gs_remove_client,
+            get_signaling_connect_hints,
+            set_signal_server_host,
+            get_signal_server_url,
+            get_turn_config,
+            set_turn_config,
             signaling_peer_online,
             list_signaling_peers,
         ])
 
         // Server iniatialization
         .setup(|_app| {
+            ice_config::load_from_env();
             tauri::async_runtime::spawn(async move {
                 println!("Starting embedded signaling server...");
-                start_signaling_server().await; 
+                start_signaling_server().await;
             });
 
             Ok(())

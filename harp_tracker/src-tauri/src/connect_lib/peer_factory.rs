@@ -1,26 +1,13 @@
-// Equivalent of `new Peer(id)`
-// The signaling half lives in signaling.rs.
+// WebRTC peer factory — ICE/STUN/TURN from ice_config.
 
 use std::sync::Arc;
-use webrtc::{
-    api::{interceptor_registry::register_default_interceptors, media_engine::MediaEngine, APIBuilder},
-    ice_transport::ice_server::RTCIceServer,
-    interceptor::registry::Registry,
-    peer_connection::{configuration::RTCConfiguration, RTCPeerConnection},
-};
+
+use webrtc::{api::APIBuilder, peer_connection::RTCPeerConnection};
+
+use crate::connect_lib::ice_config;
 
 pub async fn create_peer() -> Arc<RTCPeerConnection> {
-    // Factory object for creating peers
     let api = APIBuilder::new().build();
-
-    // Google STUN only.
-    let config = RTCConfiguration {
-        ice_servers: vec![RTCIceServer {
-            urls: vec!["stun:stun.l.google.com:19302".to_owned()],
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-
+    let config = ice_config::build_rtc_configuration();
     Arc::new(api.new_peer_connection(config).await.unwrap())
 }

@@ -16,6 +16,7 @@ use webrtc::{
 
 use crate::connect_lib::{
     gen::generate_human_id,
+    ice_config,
     peer_factory::create_peer,
     signaling::{connect_signaling, wait_for_peer_online, SignalMsg, SignalingConnection},
 };
@@ -71,6 +72,7 @@ pub async fn client_run(
     let mut signal_rx = signal_rx;
     tauri::async_runtime::spawn(async move {
         let peer = create_peer().await;
+        ice_config::attach_ice_state_handler(&peer, app.clone(), id_for_task.clone(), "client");
 
         let channel = peer
             .create_data_channel("main", None)
@@ -191,7 +193,9 @@ pub async fn client_run(
                 }
                 SignalMsg::Error { message } => {
                     eprintln!("  Signaling error: {}", message);
-                    let _ = app.emit("client-error", serde_json::json!({ "message": message }));
+                    if !message.contains("not found") {
+                        let _ = app.emit("client-error", serde_json::json!({ "message": message }));
+                    }
                 }
                 _ => {}
             }

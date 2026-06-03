@@ -11,12 +11,29 @@
             <h3>Choose your role</h3>
             <button id="btn_gs" type="button">Ground Station</button>
             <button id="btn_client" type="button">Client Node</button>
+
+            <details class="turn_settings">
+                <summary>Advanced — TURN / NAT traversal</summary>
+                <p class="hint">Use when signaling works but the WebRTC handshake never finishes. Apply the same settings on every device before connecting.</p>
+                <label class="hint" for="turn_urls_input">TURN URLs (comma-separated)</label>
+                <input type="text" id="turn_urls_input" placeholder="turn:your-server.com:3478, turns:your-server.com:5349" />
+                <label class="hint" for="turn_user_input">Username</label>
+                <input type="text" id="turn_user_input" placeholder="TURN username" />
+                <label class="hint" for="turn_cred_input">Credential</label>
+                <input type="password" id="turn_cred_input" placeholder="TURN password" />
+                <label class="hint"><input type="checkbox" id="turn_force_relay" /> Force relay only (no direct P2P)</label>
+                <button type="button" id="turn_save_btn">Save TURN settings</button>
+                <p class="hint" id="turn_save_status"></p>
+            </details>
         </div>
 
         <div class="gs_side" id="gs_panel">
             <h3>Ground Station</h3>
             <p class="hint">Share this ID with client nodes:</p>
             <div class="id_field" id="gs_id_display"></div>
+
+            <p class="hint">Remote devices: use this signaling address (same Wi‑Fi/LAN):</p>
+            <div class="id_field" id="gs_signaling_urls"></div>
 
             <h3 class="client_assignment">Incoming Offers</h3>
             <p id="gs_pending_status">No pending offers</p>
@@ -35,7 +52,9 @@
             <div class="id_field" id="c_id_display"></div>
 
             <h3 class="client_assignment">Connect to Ground Station</h3>
-            <p id="c_status">Enter a Ground Station ID and connect.</p>
+            <p id="c_status">Enter signaling host and Ground Station ID.</p>
+            <label class="hint" for="signaling_host_input">Signaling server (Ground Station PC)</label>
+            <input type="text" id="signaling_host_input" placeholder="127.0.0.1 or 192.168.x.x" />
             <div id="gs_listed">
                 <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
             </div>

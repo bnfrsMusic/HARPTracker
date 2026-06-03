@@ -18,6 +18,8 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 type PeerTx = mpsc::UnboundedSender<Message>;
 pub type PeerMap = Arc<Mutex<HashMap<String, PeerTx>>>;
 
+pub const SIGNAL_PORT: u16 = 9000;
+
 static PEER_DIRECTORY: OnceLock<PeerMap> = OnceLock::new();
 
 pub fn peer_directory() -> Option<&'static PeerMap> {
@@ -54,7 +56,7 @@ pub async fn start_signaling_server() {
         return;
     }
 
-    let addr: SocketAddr = "127.0.0.1:9000".parse().unwrap();
+    let addr: SocketAddr = format!("0.0.0.0:{}", SIGNAL_PORT).parse().unwrap();
     let listener = match TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -71,7 +73,15 @@ pub async fn start_signaling_server() {
     let peers: PeerMap = Arc::new(Mutex::new(HashMap::new()));
     let _ = PEER_DIRECTORY.set(peers.clone());
 
-    println!("Signal server listening on ws://{}", addr);
+    let lan = crate::connect_lib::network::list_lan_ipv4();
+    println!("Signal server listening on ws://127.0.0.1:{} (all interfaces)", SIGNAL_PORT);
+    for ip in &lan {
+        println!("  Remote clients on your LAN should use: ws://{}:{}", ip, SIGNAL_PORT);
+    }
+    if lan.is_empty() {
+        println!("  (No LAN IPv4 detected — remote devices may need manual network setup)");
+    }
+    println!("  Allow TCP port {} through the host firewall for remote connections", SIGNAL_PORT);
 
     while let Ok((stream, peer_addr)) = listener.accept().await {
         let peers = peers.clone();

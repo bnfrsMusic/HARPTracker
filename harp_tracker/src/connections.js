@@ -2,7 +2,7 @@ const tauriCore = window.__TAURI__?.core ?? window.parent.__TAURI__?.core;
 const tauriEvent = window.__TAURI__?.event ?? window.parent.__TAURI__?.event;
 
 if (!tauriCore || !tauriEvent) {
-    console.error('Tauri API not available in this frame — open Connections from the main window.');
+    console.error('Tauri API not available — Connections must run inside the HARP Tracker app.');
 }
 
 const invoke = tauriCore.invoke.bind(tauriCore);
@@ -16,6 +16,8 @@ const gsPanel = document.getElementById('gs_panel');
 const clientPanel = document.getElementById('c_panel');
 
 const gsIdDisplay = document.getElementById('gs_id_display');
+const gsSignalingUrls = document.getElementById('gs_signaling_urls');
+const signalingHostInput = document.getElementById('signaling_host_input');
 const clientIdDisplay = document.getElementById('c_id_display');
 
 const gsStatus = document.getElementById('gs_status');
@@ -35,6 +37,8 @@ const disconnectClientBtn = document.getElementById('btn_disconnect_c');
 let currentRole = null;
 let gsRunning = false;
 let clientRunning = false;
+let listenersReady = false;
+let pendingPollTimer = null;
 
 const pendingEntries = new Map();
 const connectedEntries = new Map();
@@ -110,113 +114,232 @@ function makePeerEntry(peerId, label, options = {}) {
     return entry;
 }
 
-function removeEntry(map, peerId, container) {
+function removeEntry(map, peerId) {
     const entry = map.get(peerId);
     if (entry) {
         entry.remove();
         map.delete(peerId);
     }
-    if (container && container.childElementCount === 0) {
-        container.replaceChildren();
+}
+
+function showPendingClient(id) {
+    if (currentRole !== 'gs' || pendingEntries.has(id) || connectedEntries.has(id)) {
+        return;
+    }
+
+    const entry = makePeerEntry(id, `Client offer: ${id}`, {
+        indicatorClass: 'pending',
+        onAccept: async () => {
+            try {
+                await invoke('gs_accept_offer', { nodeId: id });
+                removeEntry(pendingEntries, id);
+                setGsPendingStatus();
+                gsStatus.textContent = `Accepted ${id} — completing WebRTC handshake…`;
+            } catch (err) {
+                console.error('Accept offer failed:', err);
+                gsStatus.textContent = `Failed to accept ${id}: ${err}`;
+            }
+        },
+        onReject: async () => {
+            try {
+                await invoke('gs_reject_offer', { nodeId: id });
+            } catch (err) {
+                console.error('Reject offer failed:', err);
+            } finally {
+                removeEntry(pendingEntries, id);
+                setGsPendingStatus();
+            }
+        },
+    });
+
+    pendingList.appendChild(entry);
+    pendingEntries.set(id, entry);
+    setGsPendingStatus();
+    gsStatus.textContent = `Incoming offer from ${id} — click Accept`;
+}
+
+function showNewClient({ id, role, name }) {
+    if (currentRole !== 'gs') return;
+    removeEntry(pendingEntries, id);
+    if (connectedEntries.has(id)) return;
+
+    const label = name ? `${role} (${name}): ${id}` : `${role}: ${id}`;
+    const entry = makePeerEntry(id, label, {
+        indicatorClass: 'ok',
+        onRemove: async () => {
+            try {
+                await invoke('gs_remove_client', { nodeId: id });
+            } catch (err) {
+                console.error('Remove client failed:', err);
+                gsStatus.textContent = `Failed to remove ${id}`;
+            }
+        },
+    });
+
+    connectedClientList.appendChild(entry);
+    connectedEntries.set(id, entry);
+    setGsPendingStatus();
+    setGsConnectedStatus();
+}
+
+function handleConnectEvent(eventName, payload) {
+    switch (eventName) {
+        case 'pending-client':
+            showPendingClient(payload.id);
+            break;
+        case 'new-client':
+            showNewClient(payload);
+            break;
+        case 'client-removed':
+            if (currentRole === 'gs') {
+                removeEntry(connectedEntries, payload.id);
+                removeEntry(pendingEntries, payload.id);
+                setGsPendingStatus();
+                setGsConnectedStatus();
+            }
+            break;
+        case 'new-gs':
+            if (currentRole === 'client') {
+                clientGsConnection.replaceChildren();
+                const entry = makePeerEntry(
+                    payload.id,
+                    `${payload.role}: ${payload.id}`,
+                    { indicatorClass: 'ok' }
+                );
+                clientGsConnection.appendChild(entry);
+                clientStatus.textContent = `Linked to ${payload.id}`;
+            }
+            break;
+        case 'gs-online':
+            if (currentRole === 'gs') {
+                gsStatus.textContent = `Registered on signaling server as ${payload.id}`;
+            }
+            break;
+        case 'client-error': {
+            const message = payload?.message ?? 'Connection error';
+            if (message.includes('not found') && clientRunning) {
+                return;
+            }
+            if (currentRole === 'gs') {
+                gsStatus.textContent = message;
+            } else if (currentRole === 'client') {
+                clientStatus.textContent = message;
+            }
+            break;
+        }
+        case 'webrtc-ice-state': {
+            const { id, state, hint } = payload;
+            let text = `ICE ${state} (${id})`;
+            if (hint) text += ` — ${hint}`;
+            if (currentRole === 'gs') {
+                if (state === 'connected') {
+                    gsStatus.textContent = `WebRTC connected to ${id}`;
+                } else if (state === 'failed') {
+                    gsStatus.textContent = text;
+                } else if (state === 'checking') {
+                    gsStatus.textContent = `Completing WebRTC handshake with ${id}…`;
+                }
+            } else if (currentRole === 'client') {
+                if (state === 'connected') {
+                    clientStatus.textContent = `WebRTC connected to Ground Station`;
+                } else if (state === 'failed') {
+                    clientStatus.textContent = text;
+                } else if (state === 'checking') {
+                    clientStatus.textContent = 'Completing WebRTC handshake…';
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+async function pollPendingOffers() {
+    if (!gsRunning || currentRole !== 'gs') {
+        return;
+    }
+    try {
+        const ids = await invoke('gs_list_pending_offers');
+        for (const id of ids) {
+            showPendingClient(id);
+        }
+    } catch (err) {
+        console.warn('Pending offer poll failed:', err);
+    }
+}
+
+function startPendingPoll() {
+    stopPendingPoll();
+    pendingPollTimer = setInterval(pollPendingOffers, 1000);
+}
+
+function stopPendingPoll() {
+    if (pendingPollTimer) {
+        clearInterval(pendingPollTimer);
+        pendingPollTimer = null;
     }
 }
 
 async function setupEventListeners() {
-    await listen('pending-client', (event) => {
-        if (currentRole !== 'gs') return;
-        const { id } = event.payload;
-        if (pendingEntries.has(id) || connectedEntries.has(id)) return;
+    const events = [
+        'pending-client',
+        'new-client',
+        'client-removed',
+        'new-gs',
+        'gs-online',
+        'client-error',
+        'webrtc-ice-state',
+    ];
 
-        const entry = makePeerEntry(id, `Client offer: ${id}`, {
-            indicatorClass: 'pending',
-            onAccept: async () => {
-                try {
-                    await invoke('gs_accept_offer', { nodeId: id });
-                    removeEntry(pendingEntries, id);
-                    setGsPendingStatus();
-                } catch (err) {
-                    console.error('Accept offer failed:', err);
-                    gsStatus.textContent = `Failed to accept ${id}`;
-                }
-            },
-            onReject: async () => {
-                try {
-                    await invoke('gs_reject_offer', { nodeId: id });
-                } catch (err) {
-                    console.error('Reject offer failed:', err);
-                } finally {
-                    removeEntry(pendingEntries, id);
-                    setGsPendingStatus();
-                }
-            },
+    for (const eventName of events) {
+        await listen(eventName, (event) => {
+            handleConnectEvent(eventName, event.payload);
         });
+    }
 
-        pendingList.appendChild(entry);
-        pendingEntries.set(id, entry);
-        setGsPendingStatus();
-    });
-
-    await listen('new-client', (event) => {
-        if (currentRole !== 'gs') return;
-        const { id, role, name } = event.payload;
-        removeEntry(pendingEntries, id);
-
-        if (connectedEntries.has(id)) return;
-
-        const label = name ? `${role} (${name}): ${id}` : `${role}: ${id}`;
-        const entry = makePeerEntry(id, label, {
-            indicatorClass: 'ok',
-            onRemove: async () => {
-                try {
-                    await invoke('gs_remove_client', { nodeId: id });
-                } catch (err) {
-                    console.error('Remove client failed:', err);
-                    gsStatus.textContent = `Failed to remove ${id}`;
-                }
-            },
-        });
-
-        connectedClientList.appendChild(entry);
-        connectedEntries.set(id, entry);
-        setGsPendingStatus();
-        setGsConnectedStatus();
-    });
-
-    await listen('client-removed', (event) => {
-        if (currentRole !== 'gs') return;
-        const { id } = event.payload;
-        removeEntry(connectedEntries, id);
-        removeEntry(pendingEntries, id);
-        setGsPendingStatus();
-        setGsConnectedStatus();
-    });
-
-    await listen('new-gs', (event) => {
-        if (currentRole !== 'client') return;
-        const { id, role } = event.payload;
-        clientGsConnection.replaceChildren();
-        const entry = makePeerEntry(id, `${role}: ${id}`, { indicatorClass: 'ok' });
-        clientGsConnection.appendChild(entry);
-        clientStatus.textContent = `Linked to ${id}`;
-    });
-
-    await listen('gs-online', (event) => {
-        if (currentRole === 'gs') {
-            gsStatus.textContent = `Registered on signaling server as ${event.payload.id}`;
+    window.addEventListener('message', (event) => {
+        if (event.data?.type === 'harp-connect-event') {
+            handleConnectEvent(event.data.event, event.data.payload);
+        }
+        if (event.data?.type === 'THEME_CHANGE') {
+            document.documentElement.setAttribute('data-theme', event.data.theme);
         }
     });
 
-    await listen('client-error', (event) => {
-        const message = event.payload?.message ?? 'Connection error';
-        if (currentRole === 'gs') {
-            gsStatus.textContent = message;
-        } else if (currentRole === 'client') {
-            clientStatus.textContent = message;
+    listenersReady = true;
+}
+
+async function applySignalingHost() {
+    const raw = signalingHostInput?.value?.trim() || '127.0.0.1';
+    const url = await invoke('set_signal_server_host', { hostOrUrl: raw });
+    return url;
+}
+
+async function showGsSignalingHints() {
+    if (!gsSignalingUrls) return;
+    try {
+        const hints = await invoke('get_signaling_connect_hints');
+        const lines = [];
+        if (hints.remote_urls?.length) {
+            lines.push(...hints.remote_urls);
+        } else {
+            lines.push('(no LAN IP found — check network)');
         }
-    });
+        lines.push(`This PC (local): ${hints.local_url}`);
+        gsSignalingUrls.textContent = lines.join('\n');
+    } catch (err) {
+        gsSignalingUrls.textContent = 'Could not read network addresses';
+        console.warn(err);
+    }
 }
 
 async function startGroundStation() {
+    if (!listenersReady) {
+        gsStatus.textContent = 'Loading connection UI…';
+        await setupEventListeners();
+    }
+
     currentRole = 'gs';
     choosePanel.style.display = 'none';
     gsPanel.style.display = 'flex';
@@ -229,18 +352,22 @@ async function startGroundStation() {
     connectedEntries.clear();
 
     try {
+        await invoke('set_signal_server_host', { hostOrUrl: '127.0.0.1' });
         const generatedId = await invoke('gs_run');
         gsIdDisplay.textContent = generatedId;
+        await showGsSignalingHints();
         gsRunning = true;
         gsStatus.textContent =
-            'Online on signaling server — share your ID, then wait for offers';
+            'Online — share this ID, wait for offers, then click Accept';
         setGsPendingStatus();
+        startPendingPoll();
     } catch (error) {
         console.error('Error running Ground Station:', error);
-        gsStatus.textContent = 'Failed to start Ground Station';
+        gsStatus.textContent = `Failed to start Ground Station: ${error}`;
         currentRole = null;
         gsPanel.style.display = 'none';
         choosePanel.style.display = 'flex';
+        stopPendingPoll();
     }
 }
 
@@ -258,6 +385,10 @@ async function waitForPeerOnline(peerId, timeoutMs = 45000) {
 }
 
 async function startClient() {
+    if (!listenersReady) {
+        await setupEventListeners();
+    }
+
     const gsId = gsIdInput.value.trim();
     if (!gsId) {
         clientStatus.textContent = 'Enter a Ground Station ID first.';
@@ -273,6 +404,9 @@ async function startClient() {
     gsIdInput.disabled = true;
 
     try {
+        const signalUrl = await applySignalingHost();
+        clientStatus.textContent = `Using signaling server ${signalUrl}…`;
+
         const gsVisible = await waitForPeerOnline(gsId);
         if (!gsVisible) {
             let peers = [];
@@ -285,22 +419,22 @@ async function startClient() {
                 `Ground Station "${gsId}" is not online. ` +
                 (peers.length
                     ? `Peers currently registered: ${peers.join(', ')}`
-                    : 'No peers are registered — start Ground Station first and keep that window open.');
+                    : 'No peers registered — start Ground Station first and keep that window open.');
             clientConnectBtn.disabled = false;
             gsIdInput.disabled = false;
             currentRole = null;
             return;
         }
 
-        clientStatus.textContent = 'Ground Station found — connecting…';
-        const generatedId = await invoke('client_run', { gs_id: gsId });
+        clientStatus.textContent = 'Ground Station found — sending offer…';
+        const generatedId = await invoke('client_run', { gsId });
         clientIdDisplay.textContent = generatedId;
         clientRunning = true;
         clientStatus.textContent =
-            'Offer sent — ensure the Ground Station is online, then wait for Accept';
+            `Offer sent as ${generatedId} — waiting for Ground Station to Accept`;
     } catch (error) {
         console.error('Error running Client:', error);
-        clientStatus.textContent = 'Failed to connect';
+        clientStatus.textContent = `Failed to connect: ${error}`;
         clientConnectBtn.disabled = false;
         gsIdInput.disabled = false;
         currentRole = null;
@@ -315,6 +449,7 @@ function resetUi() {
     clientPanel.style.display = 'none';
 
     gsIdDisplay.textContent = '';
+    if (gsSignalingUrls) gsSignalingUrls.textContent = '';
     clientIdDisplay.textContent = '';
     gsStatus.textContent = 'Waiting for client offers…';
     gsPendingStatus.textContent = 'No pending offers';
@@ -332,6 +467,7 @@ function resetUi() {
     currentRole = null;
     gsRunning = false;
     clientRunning = false;
+    stopPendingPoll();
 }
 
 async function handleDisconnect(role) {
@@ -358,15 +494,66 @@ clientConnectBtn.addEventListener('click', startClient);
 disconnectGsBtn.addEventListener('click', () => handleDisconnect('gs'));
 disconnectClientBtn.addEventListener('click', () => handleDisconnect('client'));
 
-setupEventListeners();
-
-window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'THEME_CHANGE') {
-        document.documentElement.setAttribute('data-theme', event.data.theme);
+async function loadTurnConfig() {
+    const turnUrlsInput = document.getElementById('turn_urls_input');
+    const turnUserInput = document.getElementById('turn_user_input');
+    const turnForceRelay = document.getElementById('turn_force_relay');
+    if (!turnUrlsInput) return;
+    try {
+        const cfg = await invoke('get_turn_config');
+        turnUrlsInput.value = (cfg.turn_urls || []).join(', ');
+        if (turnUserInput) turnUserInput.value = cfg.username || '';
+        if (turnForceRelay) turnForceRelay.checked = !!cfg.force_relay;
+    } catch (err) {
+        console.warn('Could not load TURN config:', err);
     }
-});
+}
+
+async function saveTurnConfig() {
+    const status = document.getElementById('turn_save_status');
+    const turnUrlsInput = document.getElementById('turn_urls_input');
+    const turnUserInput = document.getElementById('turn_user_input');
+    const turnCredInput = document.getElementById('turn_cred_input');
+    const turnForceRelay = document.getElementById('turn_force_relay');
+    if (!turnUrlsInput) return;
+    try {
+        await invoke('set_turn_config', {
+            turnUrls: turnUrlsInput.value.trim(),
+            username: turnUserInput?.value?.trim() || '',
+            credential: turnCredInput?.value || '',
+            forceRelay: !!turnForceRelay?.checked,
+        });
+        if (status) {
+            status.textContent =
+                'TURN saved. Disconnect and reconnect both peers for new ICE settings to apply.';
+        }
+    } catch (err) {
+        if (status) status.textContent = `TURN save failed: ${err}`;
+    }
+}
+
+const turnSaveBtn = document.getElementById('turn_save_btn');
+if (turnSaveBtn) {
+    turnSaveBtn.addEventListener('click', saveTurnConfig);
+}
+
+setupEventListeners()
+    .then(loadTurnConfig)
+    .catch((err) => {
+        console.error('Failed to set up connection listeners:', err);
+    });
 
 const savedTheme = localStorage.getItem('harp-theme');
 if (savedTheme) {
     document.documentElement.setAttribute('data-theme', savedTheme);
+}
+
+const savedSignalingHost = localStorage.getItem('harp_signaling_host');
+if (savedSignalingHost && signalingHostInput) {
+    signalingHostInput.value = savedSignalingHost;
+}
+if (signalingHostInput) {
+    signalingHostInput.addEventListener('change', () => {
+        localStorage.setItem('harp_signaling_host', signalingHostInput.value.trim());
+    });
 }

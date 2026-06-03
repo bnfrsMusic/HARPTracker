@@ -1,15 +1,56 @@
 // Peers exchange offers/answers and ICE candidates over a WebSocket
 
+use std::sync::RwLock;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
 
-pub const SIGNAL_SERVER: &str = "ws://127.0.0.1:9000";
+use crate::connect_lib::server::SIGNAL_PORT;
+
+static SIGNAL_SERVER_URL: Lazy<RwLock<String>> = Lazy::new(|| {
+    RwLock::new(default_local_signal_url())
+});
+
+pub fn default_local_signal_url() -> String {
+    format!("ws://127.0.0.1:{}", SIGNAL_PORT)
+}
+
+/// Normalize user input (IP, host:port, or full ws:// URL) into a WebSocket URL.
+pub fn normalize_signal_url(host_or_url: &str) -> Result<String, String> {
+    let s = host_or_url.trim();
+    if s.is_empty() {
+        return Err("Signaling address cannot be empty".into());
+    }
+    if s.starts_with("ws://") || s.starts_with("wss://") {
+        return Ok(s.to_string());
+    }
+    if s.contains(':') && !s.contains('/') {
+        return Ok(format!("ws://{}", s));
+    }
+    Ok(format!("ws://{}:{}", s, SIGNAL_PORT))
+}
+
+pub fn current_signal_server_url() -> String {
+    SIGNAL_SERVER_URL
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+pub fn set_signal_server_url(host_or_url: &str) -> Result<String, String> {
+    let url = normalize_signal_url(host_or_url)?;
+    *SIGNAL_SERVER_URL
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = url.clone();
+    println!("  Signaling client target: {}", url);
+    Ok(url)
+}
 
 const CONNECT_RETRIES: u32 = 40;
 const CONNECT_RETRY_DELAY: Duration = Duration::from_millis(100);
@@ -61,7 +102,8 @@ async fn connect_ws() -> Result<
 > {
     let mut last_err = String::from("unknown error");
     for attempt in 0..CONNECT_RETRIES {
-        match connect_async(SIGNAL_SERVER).await {
+        let url = current_signal_server_url();
+        match connect_async(&url).await {
             Ok((ws, _)) => return Ok(ws),
             Err(e) => {
                 last_err = format!("Cannot reach signal server: {}", e);

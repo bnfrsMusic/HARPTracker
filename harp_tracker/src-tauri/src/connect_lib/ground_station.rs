@@ -13,6 +13,7 @@ use webrtc::{
 
 use crate::connect_lib::{
     gen::generate_human_id,
+    ice_config,
     peer_factory::create_peer,
     signaling::{connect_signaling, SignalMsg, SignalingConnection},
 };
@@ -82,6 +83,7 @@ pub async fn gs_run(
         while let Some(msg) = signal_rx.recv().await {
             match msg {
                 SignalMsg::Offer { from: node_id, sdp, .. } => {
+                    println!("  Received WebRTC offer from client '{}'", node_id);
                     pending_offers.insert(node_id.clone(), sdp);
                     let _ = app_loop.emit(
                         "pending-client",
@@ -112,7 +114,6 @@ pub async fn gs_run(
                 }
                 SignalMsg::Error { message } => {
                     eprintln!("  Signaling error: {}", message);
-                    let _ = app_loop.emit("client-error", serde_json::json!({ "message": message }));
                 }
                 _ => {}
             }
@@ -126,6 +127,20 @@ pub async fn gs_run(
 
     println!("  Ground Station registered on signaling server as '{}'", my_id);
     Ok(my_id)
+}
+
+#[tauri::command]
+pub fn gs_list_pending_offers(
+    state: State<'_, Arc<Mutex<Option<GsState>>>>,
+) -> Vec<String> {
+    let guard = state.lock().unwrap();
+    let Some(gs) = guard.as_ref() else {
+        return vec![];
+    };
+    gs.pending_offers
+        .iter()
+        .map(|entry| entry.key().clone())
+        .collect()
 }
 
 #[tauri::command]
@@ -171,6 +186,7 @@ pub async fn gs_accept_offer(
         .unwrap_or_default();
 
     let peer = create_peer().await;
+    ice_config::attach_ice_state_handler(&peer, app.clone(), node_id.clone(), "ground_station");
     peer_map.insert(node_id.clone(), peer.clone());
 
     let signal_tx_cl = signal_tx.clone();
