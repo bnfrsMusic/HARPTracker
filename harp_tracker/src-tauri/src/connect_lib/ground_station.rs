@@ -307,12 +307,20 @@ async fn handle_incoming_connection(
 
                     match data {
                         SyncMsg::RoleAnnouncement { role, id, name } if role == "client" => {
+                            let client_id = {
+                                let announced = id.trim().to_string();
+                                if announced.is_empty() {
+                                    id_inner.clone()
+                                } else {
+                                    announced
+                                }
+                            };
                             let display_name = if name.trim().is_empty() {
-                                id.clone()
+                                client_id.clone()
                             } else {
                                 name.trim().to_string()
                             };
-                            names_inner.insert(id_inner.clone(), display_name.clone());
+                            names_inner.insert(client_id.clone(), display_name.clone());
 
                             let assignment = SyncMsg::Assignment {
                                 name: display_name.clone(),
@@ -322,8 +330,8 @@ async fn handle_incoming_connection(
                                 let _ = ch.send(&bytes).await;
                             }
 
-                            node_channels.insert(id_inner.clone(), ch.clone());
-                            sync::register_channel(&id_inner, ch.clone());
+                            node_channels.insert(client_id.clone(), ch.clone());
+                            sync::register_channel(&client_id, ch.clone());
 
                             let n = node_channels.len();
                             println!("  connected — {} client(s)", n);
@@ -331,13 +339,13 @@ async fn handle_incoming_connection(
                             let _ = app_inner.emit(
                                 "new-client",
                                 serde_json::json!({
-                                    "id": id_inner,
+                                    "id": client_id,
                                     "role": "Client",
                                     "name": display_name,
                                 }),
                             );
 
-                            sync::send_full_sync(&id_inner).await;
+                            sync::send_full_sync(&client_id).await;
                         }
                         _ => {}
                     }

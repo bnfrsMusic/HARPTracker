@@ -1,72 +1,112 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <link rel="stylesheet" href="styles.css" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>HARP Tracker - Connected Clients</title>
+        <title>Remote Connection</title>
     </head>
-    <body class="clients_body">
-        <div class="client_assignment" id="choose_panel">
-            <h3>Choose your role</h3>
-            <button id="btn_gs" type="button">Ground Station</button>
-            <button id="btn_client" type="button">Client Node</button>
+    <body class="remote-connect-body">
+        <div class="remote-connect" id="choose_panel">
+            <p class="remote-lead">Share live flight data with remote viewers over WebRTC.</p>
+            <div class="remote-role-btns">
+                <button type="button" id="btn_gs" class="remote-btn primary">Ground Station</button>
+                <button type="button" id="btn_client" class="remote-btn primary">Client</button>
+            </div>
 
-            <details class="turn_settings">
+            <details class="remote-advanced">
                 <summary>Advanced — TURN / NAT traversal</summary>
-                <p class="hint">Use when signaling works but the WebRTC handshake never finishes. Apply the same settings on every device before connecting.</p>
-                <label class="hint" for="turn_urls_input">TURN URLs (comma-separated)</label>
-                <input type="text" id="turn_urls_input" placeholder="turn:your-server.com:3478, turns:your-server.com:5349" />
-                <label class="hint" for="turn_user_input">Username</label>
-                <input type="text" id="turn_user_input" placeholder="TURN username" />
-                <label class="hint" for="turn_cred_input">Credential</label>
-                <input type="password" id="turn_cred_input" placeholder="TURN password" />
-                <label class="hint"><input type="checkbox" id="turn_force_relay" /> Force relay only (no direct P2P)</label>
-                <button type="button" id="turn_save_btn">Save TURN settings</button>
-                <p class="hint" id="turn_save_status"></p>
+                <p class="remote-hint">Use when signaling works but the WebRTC handshake never finishes. Apply the same settings on every device before connecting.</p>
+                <label class="remote-field">
+                    <span>TURN URLs (comma-separated)</span>
+                    <input type="text" id="turn_urls_input" placeholder="turn:host:3478, turns:host:5349" />
+                </label>
+                <label class="remote-field">
+                    <span>Username</span>
+                    <input type="text" id="turn_user_input" placeholder="TURN username" />
+                </label>
+                <label class="remote-field">
+                    <span>Credential</span>
+                    <input type="password" id="turn_cred_input" placeholder="TURN password" />
+                </label>
+                <label class="remote-field remote-check">
+                    <input type="checkbox" id="turn_force_relay" />
+                    <span>Force relay only (no direct P2P)</span>
+                </label>
+                <button type="button" id="turn_save_btn" class="remote-btn">Save TURN settings</button>
+                <p class="remote-hint" id="turn_save_status"></p>
             </details>
         </div>
 
-        <div class="gs_side" id="gs_panel">
-            <h3>Ground Station</h3>
-            <p class="hint">Share this ID with client nodes:</p>
-            <div class="id_field" id="gs_id_display"></div>
+        <div class="remote-connect remote-panel" id="gs_panel" hidden>
+            <div class="remote-status" id="gs_status">Starting…</div>
 
-            <p class="hint">Remote devices: use this signaling address (same Wi‑Fi/LAN):</p>
-            <div class="id_field" id="gs_signaling_urls"></div>
+            <section class="remote-section">
+                <h3>Your Ground Station ID</h3>
+                <p class="remote-hint">Give this exact ID to clients so they can connect.</p>
+                <div class="remote-id-box" id="gs_id_display" title="Ground Station ID">—</div>
+                <button type="button" class="remote-btn subtle remote-copy" data-copy-target="gs_id_display">Copy ID</button>
+            </section>
 
-            <h3 class="client_assignment">Incoming Offers</h3>
-            <p id="gs_pending_status">Offers are accepted automatically</p>
-            <div id="pending_list"></div>
+            <section class="remote-section">
+                <h3>Signaling address</h3>
+                <p class="remote-hint">Remote clients on the same LAN use this WebSocket URL.</p>
+                <div class="remote-id-box remote-id-multiline" id="gs_signaling_urls">—</div>
+            </section>
 
-            <h3 class="client_assignment">Connected Clients</h3>
-            <p id="gs_status">Waiting for clients…</p>
-            <div id="client_list"></div>
+            <section class="remote-section">
+                <h3>Handshakes</h3>
+                <p class="remote-hint" id="gs_pending_status">Offers are accepted automatically</p>
+                <div class="remote-peer-list" id="pending_list"></div>
+            </section>
 
-            <button id="btn_disconnect_gs" type="button">Disconnect Ground Station</button>
+            <section class="remote-section">
+                <h3>Connected clients</h3>
+                <p class="remote-hint" id="gs_connected_hint">No clients connected yet.</p>
+                <div class="remote-peer-list" id="client_list"></div>
+            </section>
+
+            <button type="button" id="btn_disconnect_gs" class="remote-btn danger">Disconnect Ground Station</button>
         </div>
 
-        <div class="c_side" id="c_panel">
-            <h3>Client</h3>
-            <p class="hint">Your display name (shown on Ground Station):</p>
-            <input type="text" id="client_name_input" placeholder="e.g. Field Team Alpha" />
+        <div class="remote-connect remote-panel" id="c_panel" hidden>
+            <div class="remote-status" id="c_status">Enter Ground Station details and connect.</div>
 
-            <p class="hint">Your client ID (auto-generated on connect):</p>
-            <div class="id_field" id="c_id_display"></div>
+            <section class="remote-section">
+                <h3>Your display name</h3>
+                <p class="remote-hint">Shown on the Ground Station’s client list.</p>
+                <label class="remote-field">
+                    <span>Name</span>
+                    <input type="text" id="client_name_input" placeholder="e.g. Field Team Alpha" />
+                </label>
+            </section>
 
-            <h3 class="client_assignment">Connect to Ground Station</h3>
-            <p id="c_status">Enter signaling host and Ground Station ID.</p>
-            <label class="hint" for="signaling_host_input">Signaling server (Ground Station PC IP or 127.0.0.1)</label>
-            <input type="text" id="signaling_host_input" placeholder="127.0.0.1 or 192.168.x.x" />
-            <div id="gs_listed">
-                <input type="text" id="gs_id_input" placeholder="Enter Ground Station ID" />
-            </div>
-            <button id="client_accept_id" type="button">Connect</button>
+            <section class="remote-section">
+                <h3>Your client ID</h3>
+                <p class="remote-hint">Generated when you connect — also visible on the Ground Station.</p>
+                <div class="remote-id-box" id="c_id_display" title="Client ID">—</div>
+                <button type="button" class="remote-btn subtle remote-copy" data-copy-target="c_id_display">Copy ID</button>
+            </section>
 
-            <h3 class="client_assignment">Ground Station</h3>
-            <div id="c_gs_connection"></div>
+            <section class="remote-section">
+                <h3>Connect to Ground Station</h3>
+                <label class="remote-field">
+                    <span>Signaling server</span>
+                    <input type="text" id="signaling_host_input" placeholder="127.0.0.1 or GS PC LAN IP" />
+                </label>
+                <label class="remote-field">
+                    <span>Ground Station ID</span>
+                    <input type="text" id="gs_id_input" placeholder="Paste ID from Ground Station" />
+                </label>
+                <button type="button" id="client_accept_id" class="remote-btn primary">Connect</button>
+            </section>
 
-            <button id="btn_disconnect_c" type="button">Disconnect Client</button>
+            <section class="remote-section">
+                <h3>Linked Ground Station</h3>
+                <div class="remote-peer-list" id="c_gs_connection"></div>
+            </section>
+
+            <button type="button" id="btn_disconnect_c" class="remote-btn danger">Disconnect Client</button>
         </div>
         <script type="module" src="connections.js"></script>
     </body>

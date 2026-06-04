@@ -22,6 +22,7 @@ const clientIdDisplay = document.getElementById('c_id_display');
 
 const gsStatus = document.getElementById('gs_status');
 const gsPendingStatus = document.getElementById('gs_pending_status');
+const gsConnectedHint = document.getElementById('gs_connected_hint');
 const clientStatus = document.getElementById('c_status');
 
 const gsIdInput = document.getElementById('gs_id_input');
@@ -35,12 +36,6 @@ const clientConnectBtn = document.getElementById('client_accept_id');
 const disconnectGsBtn = document.getElementById('btn_disconnect_gs');
 const disconnectClientBtn = document.getElementById('btn_disconnect_c');
 
-function notifyParent(eventName, payload) {
-    if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'harp-connect-event', event: eventName, payload }, '*');
-    }
-}
-
 let currentRole = null;
 let gsRunning = false;
 let clientRunning = false;
@@ -50,75 +45,161 @@ let pendingPollTimer = null;
 const pendingEntries = new Map();
 const connectedEntries = new Map();
 
-gsPanel.style.display = 'none';
-clientPanel.style.display = 'none';
+function notifyParent(eventName, payload) {
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'harp-connect-event', event: eventName, payload }, '*');
+    }
+}
+
+function showPanel(panel) {
+    choosePanel.hidden = true;
+    gsPanel.hidden = true;
+    clientPanel.hidden = true;
+    if (panel) panel.hidden = false;
+}
+
+function showChoosePanel() {
+    showPanel(choosePanel);
+}
+
+function setText(el, text) {
+    if (el) el.textContent = text ?? '';
+}
 
 function setGsPendingStatus() {
     const n = pendingEntries.size;
-    gsPendingStatus.textContent =
-        n === 0 ? 'Offers are accepted automatically' : `${n} handshake${n === 1 ? '' : 's'} in progress…`;
+    setText(
+        gsPendingStatus,
+        n === 0
+            ? 'Offers are accepted automatically when a client connects.'
+            : `${n} client${n === 1 ? '' : 's'} completing handshake…`
+    );
 }
 
 function setGsConnectedStatus() {
     const n = connectedEntries.size;
-    gsStatus.textContent =
-        n === 0
-            ? 'Online — waiting for clients'
-            : `Connected to ${n} client${n === 1 ? '' : 's'}`;
+    if (n === 0) {
+        setText(gsConnectedHint, 'No clients connected yet.');
+        setText(gsStatus, 'Online — waiting for clients');
+    } else {
+        setText(
+            gsConnectedHint,
+            `${n} client${n === 1 ? '' : 's'} receiving live flight data.`
+        );
+        setText(gsStatus, `Online — ${n} client${n === 1 ? '' : 's'} connected`);
+    }
 }
 
-function makePeerEntry(peerId, label, options = {}) {
-    const { onAccept, onReject, onRemove, indicatorClass = 'pending' } = options;
-
-    const entry = document.createElement('div');
-    entry.className = 'connection-entry';
-    entry.dataset.peerId = peerId;
+function makePeerCard({ peerId, name, clientId, statusLine, indicatorClass = 'pending', onRemove }) {
+    const card = document.createElement('div');
+    card.className = 'connection-entry remote-peer-card';
+    card.dataset.peerId = peerId;
 
     const indicator = document.createElement('div');
     indicator.className = `conn-indicator ${indicatorClass}`;
 
-    const idText = document.createElement('span');
-    idText.className = 'peer-label';
-    idText.textContent = label;
+    const body = document.createElement('div');
+    body.className = 'remote-peer-body';
 
-    entry.appendChild(indicator);
-    entry.appendChild(idText);
+    if (name) {
+        const nameRow = document.createElement('div');
+        nameRow.className = 'remote-peer-row';
+        const nameKey = document.createElement('span');
+        nameKey.className = 'remote-peer-key';
+        nameKey.textContent = 'Name';
+        const nameVal = document.createElement('span');
+        nameVal.className = 'remote-peer-val';
+        nameVal.textContent = name;
+        nameRow.appendChild(nameKey);
+        nameRow.appendChild(nameVal);
+        body.appendChild(nameRow);
+    }
+
+    const idRow = document.createElement('div');
+    idRow.className = 'remote-peer-row';
+    const idKey = document.createElement('span');
+    idKey.className = 'remote-peer-key';
+    idKey.textContent = 'Client ID';
+    const idVal = document.createElement('code');
+    idVal.className = 'remote-peer-id';
+    idVal.textContent = clientId || peerId;
+    idRow.appendChild(idKey);
+    idRow.appendChild(idVal);
+    body.appendChild(idRow);
+
+    if (statusLine) {
+        const statusRow = document.createElement('div');
+        statusRow.className = 'remote-peer-row remote-peer-status-line';
+        statusRow.dataset.statusLine = '1';
+        const statusKey = document.createElement('span');
+        statusKey.className = 'remote-peer-key';
+        statusKey.textContent = 'Status';
+        const statusVal = document.createElement('span');
+        statusVal.className = 'remote-peer-val';
+        statusVal.textContent = statusLine;
+        statusRow.appendChild(statusKey);
+        statusRow.appendChild(statusVal);
+        body.appendChild(statusRow);
+    }
+
+    card.appendChild(indicator);
+    card.appendChild(body);
 
     const actions = document.createElement('div');
-    actions.className = 'peer-actions';
+    actions.className = 'remote-peer-actions';
 
-    if (onAccept) {
-        const acceptBtn = document.createElement('button');
-        acceptBtn.type = 'button';
-        acceptBtn.className = 'peer-action accept';
-        acceptBtn.textContent = 'Accept';
-        acceptBtn.addEventListener('click', onAccept);
-        actions.appendChild(acceptBtn);
-    }
-
-    if (onReject) {
-        const rejectBtn = document.createElement('button');
-        rejectBtn.type = 'button';
-        rejectBtn.className = 'peer-action reject';
-        rejectBtn.textContent = 'Reject';
-        rejectBtn.addEventListener('click', onReject);
-        actions.appendChild(rejectBtn);
-    }
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'remote-btn subtle';
+    copyBtn.textContent = 'Copy ID';
+    copyBtn.addEventListener('click', () => copyText(clientId || peerId));
+    actions.appendChild(copyBtn);
 
     if (onRemove) {
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.className = 'peer-action remove';
+        removeBtn.className = 'remote-btn subtle danger-text';
         removeBtn.textContent = 'Remove';
         removeBtn.addEventListener('click', onRemove);
         actions.appendChild(removeBtn);
     }
 
     if (actions.childElementCount > 0) {
-        entry.appendChild(actions);
+        card.appendChild(actions);
     }
 
-    return entry;
+    return card;
+}
+
+function updatePeerCardStatus(peerId, statusLine, indicatorClass) {
+    const card = connectedEntries.get(peerId) || pendingEntries.get(peerId);
+    if (!card) return;
+    const line = card.querySelector('[data-status-line="1"] .remote-peer-val');
+    if (line) line.textContent = statusLine;
+    const dot = card.querySelector('.conn-indicator');
+    if (dot && indicatorClass) {
+        dot.className = `conn-indicator ${indicatorClass}`;
+    }
+}
+
+async function copyText(text) {
+    const value = (text || '').trim();
+    if (!value || value === '—') return;
+    try {
+        await navigator.clipboard.writeText(value);
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+function setupCopyButtons() {
+    document.querySelectorAll('.remote-copy').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.copyTarget;
+            const el = id ? document.getElementById(id) : null;
+            if (el) copyText(el.textContent);
+        });
+    });
 }
 
 function removeEntry(map, peerId) {
@@ -130,36 +211,41 @@ function removeEntry(map, peerId) {
 }
 
 function showPendingClient(id) {
-    if (currentRole !== 'gs' || pendingEntries.has(id) || connectedEntries.has(id)) {
+    if (currentRole !== 'gs' || !id || pendingEntries.has(id) || connectedEntries.has(id)) {
         return;
     }
 
-    const entry = makePeerEntry(id, `Connecting: ${id}`, {
+    const entry = makePeerCard({
+        peerId: id,
+        clientId: id,
+        statusLine: 'Handshake in progress…',
         indicatorClass: 'pending',
     });
 
     pendingList.appendChild(entry);
     pendingEntries.set(id, entry);
     setGsPendingStatus();
-    gsStatus.textContent = `Client ${id} connecting…`;
+    setText(gsStatus, `Client connecting — ID: ${id}`);
 }
 
-function showNewClient({ id, role, name }) {
-    if (currentRole !== 'gs') return;
+function showNewClient({ id, name }) {
+    if (currentRole !== 'gs' || !id) return;
     removeEntry(pendingEntries, id);
     if (connectedEntries.has(id)) return;
 
-    const label = name
-        ? `${name} — ${id}`
-        : `${role}: ${id}`;
-    const entry = makePeerEntry(id, label, {
+    const displayName = name && name !== id ? name : null;
+    const entry = makePeerCard({
+        peerId: id,
+        name: displayName,
+        clientId: id,
+        statusLine: 'Connected — syncing flight data',
         indicatorClass: 'ok',
         onRemove: async () => {
             try {
                 await invoke('gs_remove_client', { nodeId: id });
             } catch (err) {
                 console.error('Remove client failed:', err);
-                gsStatus.textContent = `Failed to remove ${id}`;
+                setText(gsStatus, `Failed to remove ${id}`);
             }
         },
     });
@@ -168,6 +254,19 @@ function showNewClient({ id, role, name }) {
     connectedEntries.set(id, entry);
     setGsPendingStatus();
     setGsConnectedStatus();
+}
+
+function showLinkedGs({ id, name }) {
+    clientGsConnection.replaceChildren();
+    const displayName = name && name !== id ? name : 'Ground Station';
+    const entry = makePeerCard({
+        peerId: id,
+        name: displayName,
+        clientId: id,
+        statusLine: 'Connected — receiving flight data',
+        indicatorClass: 'ok',
+    });
+    clientGsConnection.appendChild(entry);
 }
 
 function handleConnectEvent(eventName, payload) {
@@ -188,13 +287,11 @@ function handleConnectEvent(eventName, payload) {
             break;
         case 'new-gs':
             if (currentRole === 'client') {
-                clientGsConnection.replaceChildren();
-                const gsLabel = payload.name
-                    ? `${payload.name} (${payload.id})`
-                    : `${payload.role}: ${payload.id}`;
-                const entry = makePeerEntry(payload.id, gsLabel, { indicatorClass: 'ok' });
-                clientGsConnection.appendChild(entry);
-                clientStatus.textContent = `Receiving data from ${payload.id}`;
+                showLinkedGs({
+                    id: payload.id,
+                    name: payload.name || payload.role,
+                });
+                setText(clientStatus, `Linked to Ground Station: ${payload.id}`);
                 notifyParent('client-mode', { connected: true });
             }
             break;
@@ -202,7 +299,7 @@ function handleConnectEvent(eventName, payload) {
             if (currentRole === 'client') {
                 notifyParent('client-mode', payload);
                 if (payload.connected) {
-                    clientStatus.textContent = 'Connected — receiving flight data';
+                    setText(clientStatus, 'Connected — receiving flight data from Ground Station');
                 }
             }
             break;
@@ -213,8 +310,9 @@ function handleConnectEvent(eventName, payload) {
             notifyParent(eventName, payload);
             break;
         case 'gs-online':
-            if (currentRole === 'gs') {
-                gsStatus.textContent = `Registered on signaling server as ${payload.id}`;
+            if (currentRole === 'gs' && payload.id) {
+                setText(gsIdDisplay, payload.id);
+                setText(gsStatus, `Online — Ground Station ID: ${payload.id}`);
             }
             break;
         case 'client-error': {
@@ -223,31 +321,36 @@ function handleConnectEvent(eventName, payload) {
                 return;
             }
             if (currentRole === 'gs') {
-                gsStatus.textContent = message;
+                setText(gsStatus, message);
             } else if (currentRole === 'client') {
-                clientStatus.textContent = message;
+                setText(clientStatus, message);
             }
             break;
         }
         case 'webrtc-ice-state': {
             const { id, state, hint } = payload;
-            let text = `ICE ${state} (${id})`;
-            if (hint) text += ` — ${hint}`;
-            if (currentRole === 'gs') {
+            const iceLabel =
+                state === 'connected'
+                    ? 'WebRTC connected'
+                    : state === 'checking'
+                      ? 'Completing WebRTC handshake…'
+                      : state === 'failed'
+                        ? `Connection failed${hint ? ` — ${hint}` : ''}`
+                        : `ICE: ${state}`;
+            if (currentRole === 'gs' && id) {
+                updatePeerCardStatus(id, iceLabel, state === 'connected' ? 'ok' : state === 'failed' ? '' : 'pending');
                 if (state === 'connected') {
-                    gsStatus.textContent = `WebRTC connected to ${id}`;
+                    setText(gsStatus, `WebRTC connected to client ${id}`);
                 } else if (state === 'failed') {
-                    gsStatus.textContent = text;
-                } else if (state === 'checking') {
-                    gsStatus.textContent = `Completing WebRTC handshake with ${id}…`;
+                    setText(gsStatus, iceLabel);
                 }
             } else if (currentRole === 'client') {
                 if (state === 'connected') {
-                    clientStatus.textContent = `WebRTC connected to Ground Station`;
+                    setText(clientStatus, 'WebRTC connected to Ground Station');
                 } else if (state === 'failed') {
-                    clientStatus.textContent = text;
+                    setText(clientStatus, iceLabel);
                 } else if (state === 'checking') {
-                    clientStatus.textContent = 'Completing WebRTC handshake…';
+                    setText(clientStatus, 'Completing WebRTC handshake…');
                 }
             }
             break;
@@ -258,9 +361,7 @@ function handleConnectEvent(eventName, payload) {
 }
 
 async function pollPendingOffers() {
-    if (!gsRunning || currentRole !== 'gs') {
-        return;
-    }
+    if (!gsRunning || currentRole !== 'gs') return;
     try {
         const ids = await invoke('gs_list_pending_offers');
         for (const id of ids) {
@@ -319,8 +420,7 @@ async function setupEventListeners() {
 
 async function applySignalingHost() {
     const raw = signalingHostInput?.value?.trim() || '127.0.0.1';
-    const url = await invoke('set_signal_server_host', { hostOrUrl: raw });
-    return url;
+    return invoke('set_signal_server_host', { hostOrUrl: raw });
 }
 
 async function showGsSignalingHints() {
@@ -343,36 +443,35 @@ async function showGsSignalingHints() {
 
 async function startGroundStation() {
     if (!listenersReady) {
-        gsStatus.textContent = 'Loading connection UI…';
+        setText(gsStatus, 'Loading…');
         await setupEventListeners();
     }
 
     currentRole = 'gs';
-    choosePanel.style.display = 'none';
-    gsPanel.style.display = 'flex';
-    gsStatus.textContent = 'Starting Ground Station…';
-    gsIdDisplay.textContent = '…';
+    showPanel(gsPanel);
+    setText(gsStatus, 'Starting Ground Station…');
+    setText(gsIdDisplay, '…');
 
     pendingList.replaceChildren();
     connectedClientList.replaceChildren();
     pendingEntries.clear();
     connectedEntries.clear();
+    setGsConnectedStatus();
 
     try {
         await invoke('set_signal_server_host', { hostOrUrl: '127.0.0.1' });
         const generatedId = await invoke('gs_run');
-        gsIdDisplay.textContent = generatedId;
+        setText(gsIdDisplay, generatedId);
         await showGsSignalingHints();
         gsRunning = true;
-        gsStatus.textContent = 'Online — clients connect automatically';
         setGsPendingStatus();
+        setGsConnectedStatus();
         startPendingPoll();
     } catch (error) {
         console.error('Error running Ground Station:', error);
-        gsStatus.textContent = `Failed to start Ground Station: ${error}`;
+        setText(gsStatus, `Failed to start: ${error}`);
         currentRole = null;
-        gsPanel.style.display = 'none';
-        choosePanel.style.display = 'flex';
+        showChoosePanel();
         stopPendingPoll();
     }
 }
@@ -381,10 +480,8 @@ async function waitForPeerOnline(peerId, timeoutMs = 45000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
         const online = await invoke('signaling_peer_online', { peerId });
-        if (online) {
-            return true;
-        }
-        clientStatus.textContent = `Waiting for Ground Station "${peerId}" on signaling server…`;
+        if (online) return true;
+        setText(clientStatus, `Waiting for Ground Station “${peerId}” on signaling server…`);
         await new Promise((resolve) => setTimeout(resolve, 500));
     }
     return false;
@@ -397,21 +494,20 @@ async function startClient() {
 
     const gsId = gsIdInput.value.trim();
     if (!gsId) {
-        clientStatus.textContent = 'Enter a Ground Station ID first.';
+        setText(clientStatus, 'Enter a Ground Station ID first.');
         return;
     }
 
     currentRole = 'client';
-    choosePanel.style.display = 'none';
-    clientPanel.style.display = 'flex';
-    clientStatus.textContent = 'Checking Ground Station on signaling server…';
-    clientIdDisplay.textContent = '…';
+    showPanel(clientPanel);
+    setText(clientStatus, 'Checking Ground Station on signaling server…');
+    setText(clientIdDisplay, '—');
     clientConnectBtn.disabled = true;
     gsIdInput.disabled = true;
 
     try {
         const signalUrl = await applySignalingHost();
-        clientStatus.textContent = `Using signaling server ${signalUrl}…`;
+        setText(clientStatus, `Using signaling server ${signalUrl}…`);
 
         const gsVisible = await waitForPeerOnline(gsId);
         if (!gsVisible) {
@@ -421,49 +517,47 @@ async function startClient() {
             } catch (_) {
                 /* ignore */
             }
-            clientStatus.textContent =
-                `Ground Station "${gsId}" is not online. ` +
-                (peers.length
-                    ? `Peers currently registered: ${peers.join(', ')}`
-                    : 'No peers registered — start Ground Station first and keep that window open.');
+            setText(
+                clientStatus,
+                `Ground Station “${gsId}” is not online. ` +
+                    (peers.length
+                        ? `Peers on server: ${peers.join(', ')}`
+                        : 'Start Ground Station on the tracking PC first.')
+            );
             clientConnectBtn.disabled = false;
             gsIdInput.disabled = false;
             currentRole = null;
             return;
         }
 
-        clientStatus.textContent = 'Ground Station found — connecting…';
+        setText(clientStatus, 'Ground Station found — connecting…');
         const clientName = clientNameInput?.value?.trim() || '';
         if (clientName) {
             localStorage.setItem('harp_client_name', clientName);
         }
         const generatedId = await invoke('client_run', { gsId, clientName });
-        clientIdDisplay.textContent = generatedId;
+        setText(clientIdDisplay, generatedId);
         clientRunning = true;
-        clientStatus.textContent = `Connecting as ${generatedId}…`;
+        setText(clientStatus, `Your client ID: ${generatedId} — completing handshake…`);
         if (clientNameInput) clientNameInput.disabled = true;
     } catch (error) {
         console.error('Error running Client:', error);
-        clientStatus.textContent = `Failed to connect: ${error}`;
+        setText(clientStatus, `Failed to connect: ${error}`);
         clientConnectBtn.disabled = false;
         gsIdInput.disabled = false;
         currentRole = null;
-        clientPanel.style.display = 'none';
-        choosePanel.style.display = 'flex';
+        showChoosePanel();
     }
 }
 
 function resetUi() {
-    choosePanel.style.display = 'flex';
-    gsPanel.style.display = 'none';
-    clientPanel.style.display = 'none';
+    showChoosePanel();
 
-    gsIdDisplay.textContent = '';
-    if (gsSignalingUrls) gsSignalingUrls.textContent = '';
-    clientIdDisplay.textContent = '';
-    gsStatus.textContent = 'Waiting for clients…';
-    gsPendingStatus.textContent = 'Offers are accepted automatically';
-    clientStatus.textContent = 'Enter a Ground Station ID and connect.';
+    setText(gsIdDisplay, '—');
+    if (gsSignalingUrls) gsSignalingUrls.textContent = '—';
+    setText(clientIdDisplay, '—');
+    setText(gsPendingStatus, 'Offers are accepted automatically when a client connects.');
+    setText(clientStatus, 'Enter Ground Station details and connect.');
 
     pendingList.replaceChildren();
     connectedClientList.replaceChildren();
@@ -481,6 +575,7 @@ function resetUi() {
     gsRunning = false;
     clientRunning = false;
     stopPendingPoll();
+    setGsConnectedStatus();
 }
 
 async function handleDisconnect(role) {
@@ -500,9 +595,8 @@ async function handleDisconnect(role) {
 
 btnGs.addEventListener('click', startGroundStation);
 btnClient.addEventListener('click', () => {
-    choosePanel.style.display = 'none';
-    clientPanel.style.display = 'flex';
     currentRole = 'client';
+    showPanel(clientPanel);
 });
 clientConnectBtn.addEventListener('click', startClient);
 disconnectGsBtn.addEventListener('click', () => handleDisconnect('gs'));
@@ -539,7 +633,7 @@ async function saveTurnConfig() {
         });
         if (status) {
             status.textContent =
-                'TURN saved. Disconnect and reconnect both peers for new ICE settings to apply.';
+                'TURN saved. Disconnect and reconnect both peers for new ICE settings.';
         }
     } catch (err) {
         if (status) status.textContent = `TURN save failed: ${err}`;
@@ -550,6 +644,9 @@ const turnSaveBtn = document.getElementById('turn_save_btn');
 if (turnSaveBtn) {
     turnSaveBtn.addEventListener('click', saveTurnConfig);
 }
+
+setupCopyButtons();
+showChoosePanel();
 
 setupEventListeners()
     .then(loadTurnConfig)
