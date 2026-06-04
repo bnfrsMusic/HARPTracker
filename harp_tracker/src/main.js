@@ -1339,6 +1339,9 @@ function applyGsSyncPosition(payload) {
   if (p.last_update) {
     updateAltitudeGraph(formatUtcTime(p.last_update), p.alt);
   }
+  if (p.lat && p.lon) {
+    updateCityAndState(p.lat, p.lon).catch(() => {});
+  }
 }
 
 function applyGsSyncPrediction(payload) {
