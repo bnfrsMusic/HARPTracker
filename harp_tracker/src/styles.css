@@ -568,6 +568,18 @@ button:hover {
     font-family: afacad-flux; 
 }
 
+.connection-config-fields {
+    display: flex;
+    flex: 1 1 14rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.connection-config-fields input {
+    min-width: 10rem;
+    flex: 1 1 10rem;
+}
+
 .connection-entry input:disabled {
     background-color: var(--muted);
     opacity: 0.6;
@@ -591,21 +603,21 @@ button:hover {
 
 .clients_iframe {
     width: 100%;
-    min-height: 28rem;
-    height: min(32rem, 55vh);
+    min-height: 30rem;
+    height: min(38rem, 62vh);
     border: 1px solid var(--connection-entry-border);
-    border-radius: 8px;
-    background: var(--bg-color);
+    border-radius: 10px;
+    background: var(--panel-bg);
     display: block;
 }
 
 .remote-connect-body {
     margin: 0;
-    padding: 0.75rem 1rem 1.25rem;
+    padding: 0.85rem;
     min-height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
-    background: var(--bg-color);
+    background: var(--panel-bg);
     color: var(--text-main);
     font-family: afacad-flux, sans-serif;
 }
@@ -617,9 +629,11 @@ button:hover {
 }
 
 .remote-connect {
+    width: min(100%, 34rem);
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.65rem;
 }
 
 .remote-panel[hidden],
@@ -629,7 +643,7 @@ button:hover {
 
 .remote-lead,
 .remote-hint {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     color: var(--panel-text-color);
     margin: 0.25rem 0 0.5rem;
     text-align: left;
@@ -637,10 +651,10 @@ button:hover {
 }
 
 .remote-status {
-    padding: 0.65rem 0.85rem;
-    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
     border: 1px solid var(--primary-border-alpha);
-    background: var(--connection-entry-bg);
+    background: var(--muted);
     color: var(--text-main);
     font-size: 0.95rem;
     line-height: 1.35;
@@ -648,7 +662,14 @@ button:hover {
 }
 
 .remote-section {
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--connection-entry-border);
+}
+
+.remote-section:first-of-type {
+    border-top: 0;
+    padding-top: 0;
 }
 
 .remote-field {
@@ -687,7 +708,7 @@ button:hover {
     width: 100%;
     padding: 0.65rem 0.75rem;
     margin: 0.35rem 0 0.5rem;
-    border-radius: 8px;
+    border-radius: 6px;
     border: 1px solid var(--connection-entry-border);
     background: var(--panel-bg);
     color: var(--text-main);
@@ -708,13 +729,13 @@ button:hover {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin: 0.5rem 0;
+    margin: 0.35rem 0;
 }
 
 .remote-btn {
     font-family: afacad-flux, sans-serif;
     padding: 0.45rem 0.85rem;
-    border-radius: 6px;
+    border-radius: 5px;
     border: 1px solid var(--border-color);
     background: var(--butt-drop-bg);
     color: var(--text-main);
@@ -748,8 +769,8 @@ button:hover {
 }
 
 .remote-advanced {
-    margin-top: 0.75rem;
-    padding: 0.5rem 0;
+    margin-top: 0.35rem;
+    padding: 0.65rem 0 0;
     border-top: 1px solid var(--primary-border-alpha);
 }
 
@@ -762,13 +783,15 @@ button:hover {
 .remote-peer-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.4rem;
     margin-top: 0.35rem;
 }
 
 .remote-peer-card {
     flex-wrap: wrap;
     align-items: flex-start;
+    padding: 0.6rem;
+    border-radius: 6px;
 }
 
 .remote-peer-body {
@@ -1090,4 +1113,226 @@ Right grid, Connected Clients setup
     align-items: center;
     justify-content: center;
     color: var(--placeholder-color);
+}
+
+.remote-peer-card .conn-indicator {
+    width: 10px;
+    height: 10px;
+    margin-top: 0.25rem;
+}
+
+@media (max-width: 600px) {
+    .clients_iframe {
+        min-height: 34rem;
+        height: 72vh;
+    }
+
+    .remote-role-btns,
+    .remote-role-btns .remote-btn {
+        width: 100%;
+    }
+
+    .remote-peer-row {
+        grid-template-columns: 4.75rem 1fr;
+    }
+}
+
+/* custom styled dropdown to replace the basic dropdown */
+harp-select {
+    position: relative;
+    display: block;
+    min-width: 0;
+}
+
+/* keep the declarative option source out of the layout */
+harp-select > option,
+harp-select > harp-option {
+    display: none;
+}
+
+harp-select[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* --- in-flow trigger button --- */
+harp-select .harp-dd-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-family: afacad-flux, sans-serif;
+    font-size: 1em;
+    color: var(--text-main);
+    background: var(--butt-drop-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+harp-select .harp-dd-toggle:hover {
+    border-color: var(--primary-color);
+}
+
+harp-select .harp-dd-toggle:focus-visible {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+harp-select.open .harp-dd-toggle {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+harp-select[disabled] .harp-dd-toggle {
+    cursor: not-allowed;
+    background: var(--muted);
+}
+
+harp-select .harp-dd-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+harp-select .harp-dd-chevron {
+    flex: 0 0 auto;
+    display: inline-flex;
+    color: var(--accent-color);
+    transition: transform 0.25s ease;
+}
+
+harp-select.open .harp-dd-chevron {
+    transform: rotate(180deg);
+}
+
+/* --- floating option list (portal, appended to <body>) --- */
+.harp-dd-portal {
+    position: fixed;
+    z-index: 1000;
+    margin: 0;
+    padding: 0.3rem;
+    list-style: none;
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+    max-height: 240px;
+    overflow-y: auto;
+
+    opacity: 0;
+    transform: scale(0.97);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.18s cubic-bezier(0.2, 0, 0, 1.15);
+}
+
+.harp-dd-portal.open {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+}
+
+/* --- options --- */
+.harp-dd-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.harp-dd-option:hover,
+.harp-dd-option.active {
+    background: var(--focus-ring);
+}
+
+.harp-dd-option.selected {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.harp-dd-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.harp-dd-check {
+    flex: 0 0 auto;
+    color: var(--primary-color);
+    opacity: 0;
+    transform: scale(0.4);
+    transition: opacity 0.15s ease, transform 0.18s ease;
+}
+
+.harp-dd-option.selected .harp-dd-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* subtle staggered entrance for the options */
+.harp-dd-portal.open .harp-dd-option {
+    animation: harp-dd-opt-in 0.2s ease both;
+}
+
+@keyframes harp-dd-opt-in {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* respect the OS "reduce motion" preference */
+@media (prefers-reduced-motion: reduce) {
+    harp-select .harp-dd-toggle,
+    harp-select .harp-dd-chevron,
+    .harp-dd-portal,
+    .harp-dd-option,
+    .harp-dd-check {
+        transition: none;
+        animation: none;
+    }
+    .harp-dd-portal {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* --- layout fit for the different places a harp-select is dropped --- */
+
+/* side-panel rows: label (span) + control */
+.panel label harp-select {
+    flex: 1 1 auto;
+    max-width: 60%;
+}
+
+/* connection entries are a flex row of compact controls */
+.connection-entry harp-select {
+    flex: 1 1 auto;
+    min-width: 7rem;
+}
+.connection-entry .harp-dd-toggle {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.95em;
+}
+
+/* prediction controls box (block context) */
+.predictions-box harp-select {
+    max-width: 15rem;
 }

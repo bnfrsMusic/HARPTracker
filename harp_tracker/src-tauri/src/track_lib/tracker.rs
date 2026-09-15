@@ -10,41 +10,26 @@ use chrono::Utc;
 // use serialport::{COMPort, SerialPort};
 
 use crate::track_lib::{
-    position_time::EstimationType, pred::sondhub_predictor::SondeHubPredictor,
-    tracking_type::TrackingType,
+    module::{ModuleDefinition, ModuleRegistry, ModuleSnapshot, TelemetryEvent},
+    position_time::EstimationType,
+    pred::sondhub_predictor::SondeHubPredictor,
 };
 
-use super::{
-    aprs::APRS, iridium::Iridium, position_time::PositionTime, sondehub::SondeHub, wspr::WSPR,
-};
+use super::position_time::PositionTime;
 
 pub struct Tracker {
     active: bool,
-
-    aprs: Vec<Option<APRS>>,
-    iridium: Vec<Option<Iridium>>,
-    sondehub: Vec<Option<SondeHub>>,
-    wspr: Vec<Option<WSPR>>,
-    //Arduino and calculations modules have been commented out or removed to be worked on in the future
-    // arduino: Option<Arduino>,
-    // tracking: bool,
+    registry: ModuleRegistry,
     predictor: Option<SondeHubPredictor>,
-
     position_time: PositionTime,
     csv_path: Option<PathBuf>,
 }
 
 impl Tracker {
-    // ------------------------Initializing Functions------------------------
-
-    /// Create a new Tracker
     pub fn new() -> Self {
         Self {
             active: false,
-            aprs: vec![],
-            iridium: vec![],
-            sondehub: vec![],
-            wspr: vec![],
+            registry: ModuleRegistry::new(),
             predictor: Some(SondeHubPredictor::new()),
             position_time: PositionTime {
                 lat: 0.0,
@@ -58,163 +43,16 @@ impl Tracker {
         }
     }
 
-    /// Create a new APRS Module
-    pub fn new_aprs(&mut self, api_key: &str, call_sign: &str) {
-        self.aprs.push(Some(APRS::new(api_key, call_sign)));
-        // Also create a corresponding SondeHub
-        self.sondehub.push(Some(SondeHub::new(call_sign)));
-        if !self.active {
-            self.csv_path = self.create_folder()
-        }
-        self.active = true;
+    pub fn module_descriptors(&self) -> Vec<crate::track_lib::module::ModuleDescriptor> {
+        self.registry.list()
     }
 
-    /// Create a new Iridium Module
-    pub fn new_iridium(&mut self, base_url: &str, modem: &str) {
-        self.iridium.push(Some(Iridium::new(base_url, modem)));
-        if !self.active {
-            self.csv_path = self.create_folder()
-        }
-        self.active = true;
+    pub fn ingest_event(&mut self, event: &TelemetryEvent) -> Result<(), String> {
+        self.registry.ingest(event)
     }
 
-    /// Create a new SondeHub Module
-    pub fn new_sondehub(&mut self, call_sign: &str) {
-        self.sondehub.push(Some(SondeHub::new(call_sign)));
-        if !self.active {
-            self.csv_path = self.create_folder()
-        }
-        self.active = true;
-    }
-
-    /// Create a new WSPR Module
-    pub fn new_wspr(&mut self, call_sign: &str) {
-        self.wspr.push(Some(WSPR::new(call_sign)));
-        // Also create a corresponding SondeHub for WSPR
-        self.sondehub.push(Some(SondeHub::new_with_type(call_sign, "WSPR")));
-        if !self.active {
-            self.csv_path = self.create_folder()
-        }
-        self.active = true;
-    }
-
-    // /// Create a new Arduino Module [In Progress]
-    // pub fn new_arduino(&mut self, serial: Option<Arc<Mutex<Box<dyn SerialPort + Send>>>>,com: Option<COMPort>){
-    //     self.arduino = Some(Arduino::new(serial, com));
-    // }
-
-    // /// Setup Arduino
-    // pub fn setup_arduino(&mut self) -> Result<(), Box<dyn std::error::Error>>{
-    //     self.arduino.as_mut().unwrap().setup()
-    // }
-
-    /// Function to set tracking on or off
-    // pub fn set_tracking(&mut self, val: bool){
-    //     self.arduino.as_mut().unwrap().set_tracking(val);
-    // }
-
-    // ------------------------Tracking Modules Return Functions------------------------
-
-    pub fn return_aprs(&mut self) -> Vec<Option<APRS>> {
-        self.aprs.clone()
-    }
-    pub fn return_iridium(&mut self) -> Vec<Option<Iridium>> {
-        self.iridium.clone()
-    }
-    pub fn return_sondehub(&mut self) -> Vec<Option<SondeHub>> {
-        self.sondehub.clone()
-    }
-    pub fn return_wspr(&mut self) -> Vec<Option<WSPR>> {
-        self.wspr.clone()
-    }
-    // pub fn is_arduino_active(&self) -> bool {
-    //     if self.aprs.is_some(){
-    //         return self.arduino.as_ref().unwrap().active;
-    //     }
-    //     return false;
-    // }
-
-    // ------------------------Update Helper Functions------------------------
-
-    fn update_aprs(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
-        if self.aprs.len() > 0 {
-            let mut e = vec![];
-
-            for aprs in &mut self.aprs {
-                if aprs.is_some() {
-                    e.push(aprs.as_mut().unwrap().update_position());
-                }
-            }
-            return e;
-        }
-        // Ok(())
-        return vec![Err("Error updating APRS".into())];
-    }
-
-    fn update_iridium(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
-        let mut e = vec![];
-        for iridium in &mut self.iridium {
-            if iridium.is_some() {
-                e.push(iridium.as_mut().unwrap().update_position());
-            }
-        }
-        if e.is_empty() {
-            e.push(Err("Error updating Iridium".into()));
-        }
-        e
-    }
-
-    fn update_wspr(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
-        let mut e: Vec<Result<(), Box<dyn std::error::Error + 'static>>> = vec![];
-        for wspr in &mut self.wspr {
-            if wspr.is_some() {
-                e.push(
-                    wspr.as_mut()
-                        .unwrap()
-                        .update_position()
-                        .map_err(|e| e as Box<dyn std::error::Error + 'static>),
-                );
-            }
-        }
-        if e.is_empty() {
-            e.push(Err("Error updating WSPR".into()));
-        }
-        e
-    }
-
-    fn update_sondehub(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
-        let mut e = vec![];
-        for sondehub in &mut self.sondehub {
-            if sondehub.is_some() {
-                e.push(sondehub.as_mut().unwrap().update_position());
-            }
-        }
-        if e.is_empty() {
-            e.push(Err("Error updating Sondehub".into()));
-        }
-        e
-    }
-
-    // fn update_arduino(&mut self) -> Result<(), Box<(dyn std::error::Error + 'static)>>{
-    //     if self.arduino.is_some(){
-    //         return self.arduino.as_mut().unwrap().update();
-    //     }
-    //     // Ok(())
-    //     return Err("Error updating Arduino".into());
-    // }
-
-    /// Internal function to update all modules on the tracker and return the errors as a vector
-    fn update_tracker(&mut self) -> Vec<Result<(), Box<dyn std::error::Error + 'static>>> {
-        let mut v: Vec<Result<(), Box<dyn std::error::Error + 'static>>> = vec![];
-
-        // Ensure APRS runs first so SondeHub updates can use APRS-provided velocities
-        v.extend(self.update_aprs());
-        v.extend(self.update_sondehub());
-        v.extend(self.update_iridium());
-        v.extend(self.update_wspr());
-        // v.push(self.update_arduino());
-
-        v
+    fn update_tracker(&mut self) -> Vec<Result<(), String>> {
+        self.registry.update_all()
     }
 
     /// Creates a data storage folder, if not already existing
@@ -239,10 +77,10 @@ impl Tracker {
 
     /// Function to write the data to csv
     fn write_to_csv(
-        track_type: TrackingType,
+        track_type: &str,
         pos_time: PositionTime,
         csv_path: Option<PathBuf>,
-    ) -> io::Result<TrackingType> {
+    ) -> io::Result<()> {
         let mut file = OpenOptions::new().append(true).open(csv_path.unwrap())?;
         writeln!(
             file,
@@ -255,123 +93,30 @@ impl Tracker {
             pos_time.vert_vel,
             pos_time.last_update
         )?;
-        Ok(track_type)
+        Ok(())
     }
 
     // ------------------------Public Functions------------------------
 
-    pub fn update(&mut self) -> Vec<Box<dyn std::error::Error>> {
+    pub fn update(&mut self, method: EstimationType) -> Vec<Box<dyn std::error::Error>> {
         //Error collection to display to users (only soft errors)
         let mut err: Vec<Box<dyn std::error::Error>> = vec![];
 
         //Collect soft errors from update_tracker
         for opt in self.update_tracker() {
             if let Err(e) = opt {
-                err.push(e);
-            }
-        }
-        
-        let mut positions_src: Vec<(PositionTime, TrackingType)> = vec![];
-        eprintln!("DEBUG: APRS vector length: {}", self.aprs.len());
-        if self.aprs.len() > 0 {
-            for (idx, aprs) in self.aprs.iter().enumerate() {
-                eprintln!("DEBUG: APRS[{}] is_some: {}", idx, aprs.is_some());
-                if let Some(aprs) = aprs {
-                    let t = aprs.get_last_update();
-                    eprintln!("DEBUG: APRS[{}] last_update: {}", idx, t);
-                    if t != 0 {
-                        let pt = aprs.get_pos_time();
-                        eprintln!("DEBUG: APRS[{}] pos_time: {:?}", idx, pt);
-                        //skip positions with (0.0, 0.0, 0.0) (invalid/startup positions)
-                        if pt.lat == 0.0 && pt.lon == 0.0 && pt.alt == 0.0 {
-                            eprintln!("DEBUG: Skipping APRS[{}] - invalid zero coordinates (0,0,0)", idx);
-                            continue;
-                        }
-                        positions_src.push((pt.clone(), TrackingType::APRS));
-                        eprintln!(
-                            "{:?}",
-                            Self::write_to_csv(TrackingType::APRS, pt, self.csv_path.clone())
-                        );
-                    }
-                }
+                err.push(Box::new(io::Error::other(e)));
             }
         }
 
-        eprintln!("DEBUG: SondeHub vector length: {}", self.sondehub.len());
-        if self.sondehub.len() > 0 {
-            for (idx, sondehub) in self.sondehub.iter().enumerate() {
-                eprintln!("DEBUG: SondeHub[{}] is_some: {}", idx, sondehub.is_some());
-                if let Some(sondehub) = sondehub {
-                    let t = sondehub.get_last_update();
-                    eprintln!("DEBUG: SondeHub[{}] last_update: {}", idx, t);
-                    if t != 0 {
-                        let pt = sondehub.get_pos_time();
-                        eprintln!("DEBUG: SondeHub[{}] pos_time: {:?}", idx, pt);
-                        //skip SondeHub positions that are all zeros (0,0,0)
-                        if pt.lat == 0.0 && pt.lon == 0.0 && pt.alt == 0.0 {
-                            eprintln!("DEBUG: Skipping SondeHub[{}] - invalid zero coordinates (0,0,0)", idx);
-                            continue;
-                        }
-                        positions_src.push((pt.clone(), TrackingType::SondeHub));
-                        eprintln!(
-                            "{:?}",
-                            Self::write_to_csv(TrackingType::SondeHub, pt, self.csv_path.clone())
-                        );
-                    }
-                }
-            }
+        let mut positions_src = self.registry.positions();
+        positions_src.retain(|(position, _)| !(position.lat == 0.0 && position.lon == 0.0));
+        for (position, module_type) in &positions_src {
+            eprintln!(
+                "{:?}",
+                Self::write_to_csv(module_type, position.clone(), self.csv_path.clone())
+            );
         }
-
-        if self.wspr.len() > 0 {
-            for (idx, wspr) in self.wspr.iter().enumerate() {
-                eprintln!("DEBUG: WSPR[{}] is_some: {}", idx, wspr.is_some());
-                if let Some(wspr) = wspr {
-                    let t = wspr.get_last_update();
-                    eprintln!("DEBUG: WSPR[{}] last_update: {}", idx, t);
-                    if t != 0 {
-                        let pt = wspr.get_pos_time();
-                        eprintln!("DEBUG: WSPR[{}] pos_time: {:?}", idx, pt);
-                        //skip WSPR positions with lat=0 AND lon=0 (invalid/startup positions)
-                        if pt.lat == 0.0 && pt.lon == 0.0 {
-                            eprintln!("DEBUG: Skipping WSPR[{}] - invalid zero coordinates (0,0)", idx);
-                            continue;
-                        }
-                        positions_src.push((pt.clone(), TrackingType::WSPR));
-                        eprintln!(
-                            "{:?}",
-                            Self::write_to_csv(TrackingType::WSPR, pt, self.csv_path.clone())
-                        );
-                    }
-                }
-            }
-        }
-
-        if self.iridium.len() > 0 {
-            for (idx, iridium) in self.iridium.iter().enumerate() {
-                eprintln!("DEBUG: Iridium[{}] is_some: {}", idx, iridium.is_some());
-                if let Some(iridium) = iridium {
-                    let t = iridium.get_last_update();
-                    eprintln!("DEBUG: Iridium[{}] last_update: {}", idx, t);
-                    if t != 0 {
-                        let pt = iridium.get_pos_time();
-                        eprintln!("DEBUG: Iridium[{}] pos_time: {:?}", idx, pt);
-                        //skip positions with (0.0, 0.0, 0.0) (invalid/startup positions)
-                        if pt.lat == 0.0 && pt.lon == 0.0 && pt.alt == 0.0 {
-                            eprintln!("DEBUG: Skipping Iridium[{}] - invalid zero coordinates (0,0,0)", idx);
-                            continue;
-                        }
-                        positions_src.push((pt.clone(), TrackingType::Iridium));
-                        eprintln!(
-                            "{:?}",
-                            Self::write_to_csv(TrackingType::Iridium, pt, self.csv_path.clone())
-                        );
-                    }
-                }
-            }
-        }
-
-        eprintln!("Collected {} positions for filtering", positions_src.len());
-
         // Sort by time ascending
         positions_src.sort_by_key(|(p, _)| p.last_update);
 
@@ -391,10 +136,10 @@ impl Tracker {
         let mut positions_for_filter: Vec<PositionTime> = Vec::new();
         for i in 0..positions_src.len() {
             let mut curr = positions_src[i].0.clone();
-            let src = positions_src[i].1;
+            let src = &positions_src[i].1;
             if i == 0 {
                 // first point: if it's SondeHub and lacks velocities, skip it
-                if src == TrackingType::SondeHub && curr.horiz_vel == 0.0 && curr.vert_vel == 0.0 {
+                if src == "sondehub" && curr.horiz_vel == 0.0 && curr.vert_vel == 0.0 {
                     continue;
                 }
                 positions_for_filter.push(curr);
@@ -439,11 +184,11 @@ impl Tracker {
             );
         }
 
-        let most_recent_position: Option<PositionTime> =
-            PositionTime::return_valid_pos_time(positions_for_filter, EstimationType::Recent);
+        let estimated_position: Option<PositionTime> =
+            PositionTime::return_valid_pos_time(positions_for_filter, method);
 
         //Update struct and log to CSV if we have a new update
-        if let Some(new_pos) = most_recent_position.clone() {
+        if let Some(new_pos) = estimated_position.clone() {
             eprintln!("Updating position_time to: {:?}", new_pos);
 
             // Preserve existing velocities if new position has zero velocities
@@ -483,114 +228,6 @@ impl Tracker {
 
         err
     }
-    pub fn get_position_with_filtering(&self, method: EstimationType) -> (f64, f64, f64, f64, f64) {
-        let mut positions: Vec<PositionTime> = vec![];
-        eprintln!("DEBUG: get_position_with_filtering() collecting positions...");
-        
-        if self.aprs.len() > 0 {
-            for aprs in &self.aprs {
-                if let Some(aprs) = aprs {
-                    let t = aprs.get_last_update();
-                    if t != 0 {
-                        let pt = aprs.get_pos_time();
-                        // Skip positions with (0.0, 0.0, 0.0)
-                        if pt.lat == 0.0 && pt.lon == 0.0 && pt.alt == 0.0 {
-                            eprintln!("  Skipping APRS position (zero coords)");
-                            continue;
-                        }
-                        positions.push(pt);
-                        eprintln!("  Added APRS position");
-                    }
-                }
-            }
-        }
-
-        if self.iridium.len() > 0 {
-            for iridium in &self.iridium {
-                if let Some(iridium) = iridium {
-                    let t = iridium.get_last_update();
-                    if t != 0 {
-                        let pt = iridium.get_pos_time();
-                        // Skip positions with (0.0, 0.0, 0.0)
-                        if pt.lat == 0.0 && pt.lon == 0.0 && pt.alt == 0.0 {
-                            eprintln!("  Skipping Iridium position (zero coords)");
-                            continue;
-                        }
-                        positions.push(pt);
-                        eprintln!("  Added Iridium position");
-                    }
-                }
-            }
-        }
-
-        if self.sondehub.len() > 0 {
-            for sondehub in &self.sondehub {
-                if let Some(sondehub) = sondehub {
-                    let t = sondehub.get_last_update();
-                    if t != 0 {
-                        let pt = sondehub.get_pos_time();
-                        // Skip SondeHub positions that are all zeros (0,0,0) - no data found
-                        if pt.lat == 0.0 && pt.lon == 0.0 && pt.alt == 0.0 {
-                            eprintln!("  Skipping SondeHub position (zero coords)");
-                            continue;
-                        }
-                        // Skip positions with zero altitude (will use other sources)
-                        if pt.alt == 0.0 {
-                            eprintln!("  Skipping SondeHub position (zero altitude)");
-                            continue;
-                        }
-                        eprintln!("  Added SondeHub position: ({}, {})", pt.lat, pt.lon);
-                        positions.push(pt);
-                    }
-                }
-            }
-        }
-
-        if self.wspr.len() > 0 {
-            for wspr in &self.wspr {
-                if let Some(wspr) = wspr {
-                    let t = wspr.get_last_update();
-                    if t != 0 {
-                        let pt = wspr.get_pos_time();
-                        // Skip WSPR positions with (0.0, 0.0) - invalid position
-                        if pt.lat == 0.0 && pt.lon == 0.0 {
-                            eprintln!("  Skipping WSPR position (zero coords)");
-                            continue;
-                        }
-                        // Skip positions with zero altitude (WSPR doesn't provide altitude, use other sources)
-                        if pt.alt == 0.0 {
-                            eprintln!("  Skipping WSPR position (zero altitude)");
-                            continue;
-                        }
-                        eprintln!("  Added WSPR position: ({}, {})", pt.lat, pt.lon);
-                        positions.push(pt);
-                    }
-                }
-            }
-        }
-
-        eprintln!("DEBUG: Collected {} total positions for filtering", positions.len());
-
-        if let Some(filtered_pos) = PositionTime::return_valid_pos_time(positions, method) {
-            eprintln!("DEBUG: Filtered result: ({}, {})", filtered_pos.lat, filtered_pos.lon);
-            (
-                filtered_pos.lat,
-                filtered_pos.lon,
-                filtered_pos.alt,
-                filtered_pos.horiz_vel,
-                filtered_pos.vert_vel,
-            )
-        } else {
-            eprintln!("DEBUG: No valid filtered position, returning raw position_time: ({}, {})", self.position_time.lat, self.position_time.lon);
-            (
-                self.position_time.lat,
-                self.position_time.lon,
-                self.position_time.alt,
-                self.position_time.horiz_vel,
-                self.position_time.vert_vel,
-            )
-        }
-    }
 
     /// Function to print the data of the Tracker
     pub fn print(&self) {
@@ -621,6 +258,37 @@ impl Tracker {
         (self.position_time.horiz_vel, self.position_time.vert_vel)
     }
     pub fn get_last_update(&self) -> u64 {
-        return self.position_time.last_update;
+        self.position_time.last_update
+    }
+
+    pub fn csv_path(&self) -> Option<PathBuf> {
+        self.csv_path.clone()
+    }
+
+    pub fn module_catalog(&self) -> Vec<ModuleDefinition> {
+        self.registry.catalog()
+    }
+
+    pub fn module_snapshots(&self) -> Vec<ModuleSnapshot> {
+        self.registry.snapshots()
+    }
+
+    pub fn configure_module(
+        &mut self,
+        module_type: &str,
+        module_id: String,
+        config: serde_json::Value,
+    ) -> Result<(), String> {
+        self.registry
+            .create_module(module_type, module_id, config)?;
+        if !self.active {
+            self.csv_path = self.create_folder();
+        }
+        self.active = true;
+        Ok(())
+    }
+
+    pub fn remove_module(&mut self, module_id: &str) -> bool {
+        self.registry.remove(module_id)
     }
 }

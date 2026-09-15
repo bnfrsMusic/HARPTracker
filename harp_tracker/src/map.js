@@ -10,9 +10,12 @@ let lastLng = null;
 let aircraftLayer = null;
 let aircraftMarkers = new Map();
 let aircraftFetchInterval = null;
+let aircraftMapMoveHandler = null;
+let openskyRequestId = 0;
+const openskyPending = new Map();
 let trackingPolyline = null;
 let trackingUpdateInterval = null;
-let aircraftRadiusMeters = 100000; // default 50 km
+let aircraftRadiusMeters = 100000; // default 100 km
 let weatherLayers = {};
 
 // RainViewer variables
@@ -188,6 +191,7 @@ function initMap() {
       if (legend) legend.style.display = "block";
     }
     if (e.name === "Aircraft (ADS-B / OpenSky)") {
+      attachAircraftMapListeners();
       fetchAircraftInView();
     }
   });
@@ -199,6 +203,7 @@ function initMap() {
       if (legend) legend.style.display = "none";
     }
     if (e.name === "Aircraft (ADS-B / OpenSky)") {
+      detachAircraftMapListeners();
       aircraftMarkers.forEach((marker, icao) => {
         aircraftLayer.removeLayer(marker);
       });
@@ -231,6 +236,27 @@ function handleMessage(event) {
     updatePrediction(data.data);
   } else if (data && data.type === "LOAD_TRACKING_HISTORY") {
     loadTrackingHistoryFromPoints(data.points || []);
+  } else if (data && data.type === "SET_AIRCRAFT_CONFIG") {
+    if (typeof data.radiusMeters === "number" && data.radiusMeters > 0) {
+      aircraftRadiusMeters = data.radiusMeters;
+    }
+    if (map && map.hasLayer(aircraftLayer)) {
+      fetchAircraftInView();
+    }
+  } else if (data && data.type === "OPENSKY_RESULT" && data.id != null) {
+    const pending = openskyPending.get(data.id);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      openskyPending.delete(data.id);
+      pending.resolve(data.data);
+    }
+  } else if (data && data.type === "OPENSKY_ERROR" && data.id != null) {
+    const pending = openskyPending.get(data.id);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      openskyPending.delete(data.id);
+      pending.reject(new Error(data.error || "OpenSky request failed"));
+    }
   }
 }
 
@@ -383,6 +409,10 @@ function updateMapPosition(lat, lng, alt, horiz_vel = 0, vert_vel = 0) {
 
     lastLat = lat;
     lastLng = lng;
+
+    if (map && map.hasLayer(aircraftLayer)) {
+      fetchAircraftInView();
+    }
   } else {
     const gMapsUrl = getGmapsLink(lat, lng);
     marker.setPopupContent(`
@@ -443,24 +473,30 @@ async function updateRainViewer() {
 
     if (data.radar && data.radar.past && data.radar.past.length > 0) {
       const mostRecent = data.radar.past[data.radar.past.length - 1];
-      const timestamp = mostRecent.time;
+      const host = data.host || "https://tilecache.rainviewer.com";
+      const path = mostRecent.path;
+      if (!path) {
+        console.warn("RainViewer frame missing path field");
+        return;
+      }
 
       rainviewerLayer.clearLayers();
 
       const radarTileLayer = L.tileLayer(
-        `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`,
+        `${host}${path}/256/{z}/{x}/{y}/2/1_1.png`,
         {
           attribution:
             '&copy; <a href="https://www.rainviewer.com">RainViewer</a>',
           opacity: 0.6,
-          maxZoom: 19,
+          maxZoom: 12,
+          maxNativeZoom: 7,
           tileSize: 256,
           zIndex: 1000,
         },
       );
 
       radarTileLayer.addTo(rainviewerLayer);
-      console.log("RainViewer radar updated with timestamp:", timestamp);
+      console.log("RainViewer radar updated:", path);
     } else {
       console.warn("No radar data available from RainViewer");
     }
@@ -473,9 +509,12 @@ async function updateRainViewer() {
 
 async function loadTrackingHistory() {
   try {
-    const trackingPoints = await window.__TAURI__.core.invoke(
-      "get_tracking_history",
-    );
+    const invoke = getTauriInvoke();
+    if (!invoke) {
+      console.warn("Tauri invoke unavailable for tracking history");
+      return;
+    }
+    const trackingPoints = await invoke("get_tracking_history");
     loadTrackingHistoryFromPoints(trackingPoints);
   } catch (err) {
     console.error("Error loading tracking history:", err);
@@ -525,6 +564,134 @@ function stopAircraftUpdates() {
   if (aircraftFetchInterval) clearInterval(aircraftFetchInterval);
 }
 
+function attachAircraftMapListeners() {
+  if (!map || aircraftMapMoveHandler) return;
+  aircraftMapMoveHandler = () => {
+    if (map.hasLayer(aircraftLayer) && !hasValidPayloadPosition()) {
+      fetchAircraftInView();
+    }
+  };
+  map.on("moveend", aircraftMapMoveHandler);
+  map.on("zoomend", aircraftMapMoveHandler);
+}
+
+function detachAircraftMapListeners() {
+  if (!map || !aircraftMapMoveHandler) return;
+  map.off("moveend", aircraftMapMoveHandler);
+  map.off("zoomend", aircraftMapMoveHandler);
+  aircraftMapMoveHandler = null;
+}
+
+function hasValidPayloadPosition() {
+  if (lastLat === null || lastLng === null) return false;
+  if (!Number.isFinite(lastLat) || !Number.isFinite(lastLng)) return false;
+  if (Math.abs(lastLat) < 0.0001 && Math.abs(lastLng) < 0.0001) return false;
+  return true;
+}
+
+function getAircraftQueryBounds() {
+  if (hasValidPayloadPosition()) {
+    return {
+      mode: "radius",
+      center: { lat: lastLat, lng: lastLng },
+      ...bboxFromCenterRadius(lastLat, lastLng, aircraftRadiusMeters),
+    };
+  }
+
+  const bounds = map.getBounds();
+  return {
+    mode: "viewport",
+    center: null,
+    lamin: bounds.getSouth(),
+    lamax: bounds.getNorth(),
+    lomin: bounds.getWest(),
+    lomax: bounds.getEast(),
+  };
+}
+
+function fetchOpenSkyStatesViaParent(lamin, lomin, lamax, lomax) {
+  return new Promise((resolve, reject) => {
+    const id = ++openskyRequestId;
+    const timeout = setTimeout(() => {
+      openskyPending.delete(id);
+      reject(new Error("OpenSky request timed out"));
+    }, 20000);
+
+    openskyPending.set(id, { resolve, reject, timeout });
+    window.parent.postMessage(
+      {
+        type: "FETCH_OPENSKY",
+        id,
+        lamin,
+        lomin,
+        lamax,
+        lomax,
+      },
+      "*",
+    );
+  });
+}
+
+function getTauriInvoke() {
+  const core =
+    window.__TAURI__?.core ?? window.parent?.__TAURI__?.core ?? null;
+  return core?.invoke?.bind(core) ?? null;
+}
+
+function bboxFromCenterRadius(lat, lng, radiusMeters) {
+  const latDelta = radiusMeters / 111320;
+  const lngDelta =
+    radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180) || 1);
+  return {
+    lamin: lat - latDelta,
+    lamax: lat + latDelta,
+    lomin: lng - lngDelta,
+    lomax: lng + lngDelta,
+  };
+}
+
+function formatAircraftAltitude(baroAlt, geoAlt) {
+  const alt = Number.isFinite(baroAlt)
+    ? baroAlt
+    : Number.isFinite(geoAlt)
+      ? geoAlt
+      : null;
+  return alt !== null ? `${Math.round(alt)} m` : "N/A";
+}
+
+function aircraftPopupContent(icao, callsign, baroAlt, geoAlt) {
+  const identifier = callsign ? `${callsign} (${icao})` : icao;
+  const altText = formatAircraftAltitude(baroAlt, geoAlt);
+  return `<b>${identifier}</b><br>Altitude: ${altText}`;
+}
+
+async function fetchOpenSkyStates(lamin, lomin, lamax, lomax) {
+  if (window.parent && window.parent !== window) {
+    try {
+      return await fetchOpenSkyStatesViaParent(lamin, lomin, lamax, lomax);
+    } catch (err) {
+      console.warn("OpenSky parent bridge failed, trying direct invoke:", err);
+    }
+  }
+
+  const invoke = getTauriInvoke();
+  if (invoke) {
+    return invoke("fetch_opensky_states", {
+      lamin,
+      lomin,
+      lamax,
+      lomax,
+    });
+  }
+
+  const url = `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`OpenSky API returned ${resp.status}`);
+  }
+  return resp.json();
+}
+
 async function fetchAircraftInView() {
   if (!map) return;
 
@@ -532,42 +699,34 @@ async function fetchAircraftInView() {
     return;
   }
 
-  const bounds = map.getBounds();
-  const lamin = bounds.getSouth();
-  const lamax = bounds.getNorth();
-  const lomin = bounds.getWest();
-  const lomax = bounds.getEast();
-
-  const url = `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`;
+  const query = getAircraftQueryBounds();
+  const { lamin, lamax, lomin, lomax, mode, center } = query;
 
   try {
-    const resp = await fetch(url);
-    if (!resp.ok) {
-      console.warn("OpenSky API returned non-ok:", resp.status);
-      return;
-    }
-    const data = await resp.json();
+    const data = await fetchOpenSkyStates(lamin, lomin, lamax, lomax);
     const states = data.states || [];
 
     const seen = new Set();
+    const filterCenter = mode === "radius" ? center : null;
 
     for (const s of states) {
       const icao = s[0];
       const callsign = (s[1] || "").trim();
       const lon = Number(s[5]);
       const lat = Number(s[6]);
-      const alt = Number(s[7]);
+      const baroAlt = Number(s[7]);
+      const geoAlt = Number(s[13]);
       const heading = Number(s[10]) || 0;
 
       if (!icao || Number.isNaN(lat) || Number.isNaN(lon)) continue;
 
-      if (lastLat !== null && lastLng !== null) {
+      if (filterCenter && typeof aircraftRadiusMeters === "number") {
         try {
-          const dist = map.distance([lat, lon], [lastLat, lastLng]);
-          if (
-            typeof aircraftRadiusMeters === "number" &&
-            dist > aircraftRadiusMeters
-          ) {
+          const dist = map.distance(
+            [lat, lon],
+            [filterCenter.lat, filterCenter.lng],
+          );
+          if (dist > aircraftRadiusMeters) {
             if (aircraftMarkers.has(icao)) {
               const m = aircraftMarkers.get(icao);
               aircraftLayer.removeLayer(m);
@@ -579,16 +738,14 @@ async function fetchAircraftInView() {
       }
 
       seen.add(icao);
+      const popupHtml = aircraftPopupContent(icao, callsign, baroAlt, geoAlt);
 
       if (aircraftMarkers.has(icao)) {
         const m = aircraftMarkers.get(icao);
         m.setLatLng([lat, lon]);
         if (typeof m.setRotationAngle === "function")
           m.setRotationAngle(heading);
-        if (m.getPopup())
-          m.setPopupContent(
-            `<b>${callsign || icao}</b><br>Alt: ${isFinite(alt) ? Math.round(alt) + " m" : "N/A"}`,
-          );
+        if (m.getPopup()) m.setPopupContent(popupHtml);
       } else {
         const planeIcon = L.divIcon({
           className: "plane-icon",
@@ -602,9 +759,7 @@ async function fetchAircraftInView() {
           rotationAngle: heading,
           rotationOrigin: "center",
         });
-        newMarker.bindPopup(
-          `<b>${callsign || icao}</b><br>Alt: ${isFinite(alt) ? Math.round(alt) + " m" : "N/A"}`,
-        );
+        newMarker.bindPopup(popupHtml);
         newMarker.addTo(aircraftLayer);
         aircraftMarkers.set(icao, newMarker);
       }

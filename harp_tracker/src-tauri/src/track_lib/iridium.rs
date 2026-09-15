@@ -3,14 +3,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use reqwest::blocking::Client;
 use serde_json::Value;
 
+use crate::track_lib::module::{Module, ModuleDefinition, ModuleDescriptor, ModuleField, ModuleRegistration, ModuleStatus, TelemetryEvent};
 use crate::track_lib::position_time::PositionTime;
-use crate::track_lib::tracking_type::TrackingType;
 
 
 #[derive(Clone)]
 pub struct Iridium {
     active: bool,
-    tracking_type: TrackingType,
+    debug: bool,
     base_url: String,
     modem: String,
     client: Client,
@@ -23,7 +23,7 @@ impl Iridium {
     pub fn new(base_url: &str, modem: &str) -> Self {
         Self {
             active: true,
-            tracking_type: TrackingType::Iridium,
+            debug: false,
             base_url: base_url.to_string(),
             modem: modem.to_string(),
             client: Client::new(),
@@ -40,6 +40,10 @@ impl Iridium {
             self.base_url, self.modem
         );
 
+        if self.debug {
+            eprintln!("[Iridium] GET {}", url);
+        }
+
         //makes GET response to URL
         let response: Value = self.client.get(&url).send()?.json()?;
 
@@ -49,6 +53,9 @@ impl Iridium {
         if let Some(latest_flight) = flights.last() {
             if let Some(uid) = latest_flight["uid"].as_str() {
                 let flight_url = format!("{}/api/flight?uid={}", self.base_url, uid);
+                if self.debug {
+                    eprintln!("[Iridium] GET {}", flight_url);
+                }
                 let flight_data: Value = self.client.get(&flight_url).send()?.json()?;
 
                 if let Some(data) = flight_data["data"].as_array() {
@@ -107,4 +114,85 @@ impl Iridium {
         self.position_time.last_update
     }
 
+}
+/// module for tracking Iridium position
+impl Module for Iridium {
+    fn id(&self) -> &str {
+        &self.modem
+    }
+
+    fn name(&self) -> &str {
+        "Iridium"
+    }
+
+    fn module_type(&self) -> &str {
+        "iridium"
+    }
+
+    fn supports_source(&self, source: &str) -> bool {
+        source.eq_ignore_ascii_case(&self.modem) || source.eq_ignore_ascii_case(self.name())
+    }
+
+    fn ingest(&mut self, event: &TelemetryEvent) -> Result<(), String> {
+        let lat = event.lat.unwrap_or(self.position_time.lat);
+        let lon = event.lon.unwrap_or(self.position_time.lon);
+        let alt = event.alt.unwrap_or(self.position_time.alt);
+        self.position_time.update(lat, lon, alt, event.timestamp, 0.0, 0.0);
+        self.active = true;
+        Ok(())
+    }
+
+    fn update(&mut self) -> Result<(), String> {
+        self.update_position().map_err(|error| error.to_string())
+    }
+
+    fn position(&self) -> Option<PositionTime> {
+        (self.position_time.last_update != 0).then(|| self.position_time.clone())
+    }
+
+    fn status(&self) -> ModuleStatus {
+        ModuleStatus {
+            enabled: self.active,
+            connected: self.active && self.position_time.last_update != 0,
+            last_update: if self.position_time.last_update != 0 { Some(self.position_time.last_update) } else { None },
+            error: None,
+        }
+    }
+
+    fn set_status(&mut self, status: ModuleStatus) {
+        self.active = status.enabled;
+        if let Some(last_update) = status.last_update {
+            self.position_time.last_update = last_update;
+        }
+    }
+
+    fn descriptor(&self) -> ModuleDescriptor {
+        ModuleDescriptor {
+            id: self.modem.clone(),
+            name: self.name().to_string(),
+            enabled: self.active,
+            connected: self.active && self.position_time.last_update != 0,
+            last_update: if self.position_time.last_update != 0 { Some(self.position_time.last_update) } else { None },
+            module_type: self.module_type().to_string(),
+        }
+    }
+}
+
+fn iridium_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        module_type: "iridium".to_string(),
+        display_name: "Iridium".to_string(),
+        description: "Track an Iridium modem through the configured flight API.".to_string(),
+        fields: vec![ModuleField { key: "modem".to_string(), label: "Modem ID".to_string(), field_type: "text".to_string(), required: true, secret: false, placeholder: Some("Modem ID".to_string()) }],
+    }
+}
+
+fn create_iridium(id: String, config: Value) -> Result<Box<dyn Module>, String> {
+    let modem = config.get("modem").and_then(Value::as_str).unwrap_or(&id);
+    let base_url = config.get("base_url").and_then(Value::as_str).unwrap_or("https://borealis.rci.montana.edu");
+    Ok(Box::new(Iridium::new(base_url, modem)))
+}
+
+inventory::submit! {
+    ModuleRegistration { definition: iridium_definition, create: create_iridium }
 }

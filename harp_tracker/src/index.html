@@ -76,15 +76,16 @@
                     <h2>Predictions</h2>
                     <label
                         ><span>Algorithm</span>
-                        <select id="prediction-algo">
-                            <option value="SondeHub">SondeHub (Tawhiri)</option>
-                        </select>
-                    </label>
+                        <harp-select id="prediction-algo" name="prediction-algo"
+                            ><harp-option value="SondeHub"
+                                >SondeHub (Tawhiri)</harp-option
+                        ></harp-select
+                    ></label>
                     <label
                         ><span>Weather Model</span
-                        ><select>
-                            <option>GFS</option>
-                        </select></label
+                        ><harp-select name="weather-model"
+                            ><harp-option>GFS</harp-option
+                        ></harp-select></label
                     >
 
                     <div class="payload-params">
@@ -131,30 +132,43 @@
                     <h2>Settings</h2>
                     <label
                         ><span>Theme</span
-                        ><select>
-                            <option>Light</option>
-                            <option>Dark</option>
-                        </select></label
+                        ><harp-select name="theme"
+                            ><harp-option value="Light">Light</harp-option
+                            ><harp-option value="Dark">Dark</harp-option
+                        ></harp-select></label
                     >
                     <label
                         ><span>Color Scheme</span
-                        ><select>
-                            <option>Simple</option>
-                        </select></label
+                        ><harp-select name="color-scheme"
+                            ><harp-option>Simple</harp-option
+                        ></harp-select></label
                     >
                     <label
                         ><span>Units</span
-                        ><select>
-                            <option>Metric</option>
-                            <option>Imperial</option>
-                        </select></label
+                        ><harp-select name="units"
+                            ><harp-option>Metric</harp-option
+                            ><harp-option>Imperial</harp-option
+                        ></harp-select></label
                     >
 
                     <div class="ground-station" style="margin-top: 0.8rem">
                         <h3>Ground Station</h3>
-                        <label><span>Lat</span><input type="text" /></label>
-                        <label><span>Lon</span><input type="text" /></label>
-                        <label><span>Alt</span><input type="text" /></label>
+                        <label><span>Lat</span><input type="text" id="gs-lat" /></label>
+                        <label><span>Lon</span><input type="text" id="gs-lon" /></label>
+                        <label><span>Alt</span><input type="text" id="gs-alt" /></label>
+                        <label
+                            ><span>Aircraft radius (km)</span
+                            ><input
+                                type="number"
+                                id="aircraft-radius-km"
+                                value="100"
+                                min="1"
+                                max="500"
+                                step="1"
+                            /><span style="font-size: 0.85em; opacity: 0.8"
+                                >from payload when tracking</span
+                            ></label
+                        >
                         <button id="request-location-btn" style="margin-top: 8px; width: 100%;">Request Location</button>
                     </div>
 
@@ -255,11 +269,11 @@
                         <h2>Prediction Controls</h2>
                         <label
                             >Filtering
-                            <select id="filtering-method">
-                                <option>Recent</option>
-                                <option selected>Average</option>
-                                <option>Median</option>
-                            </select>
+                            <harp-select id="filtering-method" name="filtering-method"
+                                ><harp-option>Recent</harp-option
+                                ><harp-option selected>Average</harp-option
+                                ><harp-option>Median</harp-option
+                            ></harp-select>
                         </label>
                         <button id="run-prediction-btn">Run Predictions</button>
                     </div>
@@ -274,6 +288,7 @@
 
         <script type="module" src="compass.js" defer></script>
         <script type="module" src="connect-bridge.js" defer></script>
+        <script type="module" src="harp-select.js" defer></script>
         <script type="module" src="main.js" defer></script>
     </body>
 </html>

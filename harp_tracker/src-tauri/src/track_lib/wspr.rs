@@ -7,13 +7,13 @@ use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use urlencoding::encode;
 
+use crate::track_lib::module::{Module, ModuleDefinition, ModuleDescriptor, ModuleField, ModuleRegistration, ModuleStatus, TelemetryEvent};
 use crate::track_lib::position_time::PositionTime;
-use crate::track_lib::tracking_type::TrackingType;
 
 #[derive(Clone)]
 pub struct WSPR {
     active: bool,
-    tracking_type: TrackingType,
+    debug: bool,
     base_url: String,
     call_sign: String,
     client: Client,
@@ -40,7 +40,7 @@ impl WSPR {
     pub fn new(call_sign: &str) -> Self {
         Self {
             active: true,
-            tracking_type: TrackingType::WSPR,
+            debug: false,
             base_url: "https://db1.wspr.live/".to_string(),
             call_sign: Self::strip_wspr_suffix(call_sign),
             client: Client::builder()
@@ -93,6 +93,10 @@ FORMAT JSON
         
         //Add max_execution_time to fail faster if query is slow (5 seconds)
         let url = format!("{}?query={}&max_execution_time=5", self.base_url, encoded_query);
+
+        if self.debug {
+            eprintln!("[WSPR] GET {}", url);
+        }
 
         let response = self.client.get(&url).send().map_err(|e| {
             eprintln!("WSPR API Request Error: {}", url);
@@ -302,4 +306,84 @@ FORMAT JSON
     pub fn get_distance(&self) -> f64 {
         self.distance
     }
+}
+/// module implementation for WSPR
+impl Module for WSPR {
+    fn id(&self) -> &str {
+        &self.call_sign
+    }
+
+    fn name(&self) -> &str {
+        "WSPR"
+    }
+
+    fn module_type(&self) -> &str {
+        "wspr"
+    }
+
+    fn supports_source(&self, source: &str) -> bool {
+        source.eq_ignore_ascii_case(&self.call_sign) || source.eq_ignore_ascii_case(self.name())
+    }
+
+    fn ingest(&mut self, event: &TelemetryEvent) -> Result<(), String> {
+        let lat = event.lat.unwrap_or(self.position_time.lat);
+        let lon = event.lon.unwrap_or(self.position_time.lon);
+        let alt = event.alt.unwrap_or(self.position_time.alt);
+        self.position_time.update(lat, lon, alt, event.timestamp, 0.0, 0.0);
+        self.active = true;
+        Ok(())
+    }
+
+    fn update(&mut self) -> Result<(), String> {
+        self.update_position().map_err(|error| error.to_string())
+    }
+
+    fn position(&self) -> Option<PositionTime> {
+        (self.position_time.last_update != 0).then(|| self.position_time.clone())
+    }
+
+    fn status(&self) -> ModuleStatus {
+        ModuleStatus {
+            enabled: self.active,
+            connected: self.active && self.position_time.last_update != 0,
+            last_update: if self.position_time.last_update != 0 { Some(self.position_time.last_update) } else { None },
+            error: None,
+        }
+    }
+
+    fn set_status(&mut self, status: ModuleStatus) {
+        self.active = status.enabled;
+        if let Some(last_update) = status.last_update {
+            self.position_time.last_update = last_update;
+        }
+    }
+
+    fn descriptor(&self) -> ModuleDescriptor {
+        ModuleDescriptor {
+            id: self.call_sign.clone(),
+            name: self.name().to_string(),
+            enabled: self.active,
+            connected: self.active && self.position_time.last_update != 0,
+            last_update: if self.position_time.last_update != 0 { Some(self.position_time.last_update) } else { None },
+            module_type: self.module_type().to_string(),
+        }
+    }
+}
+
+fn wspr_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        module_type: "wspr".to_string(),
+        display_name: "WSPR".to_string(),
+        description: "Track WSPR transmitter positions.".to_string(),
+        fields: vec![ModuleField { key: "call_sign".to_string(), label: "Callsign".to_string(), field_type: "text".to_string(), required: true, secret: false, placeholder: Some("Callsign".to_string()) }],
+    }
+}
+
+fn create_wspr(id: String, config: Value) -> Result<Box<dyn Module>, String> {
+    let call_sign = config.get("call_sign").and_then(Value::as_str).unwrap_or(&id);
+    Ok(Box::new(WSPR::new(call_sign)))
+}
+
+inventory::submit! {
+    ModuleRegistration { definition: wspr_definition, create: create_wspr }
 }

@@ -7,27 +7,16 @@ const { invoke } = window.__TAURI__.core;
 // DOM elements
 let utcMsg;
 let dateMsg;
-let ir_mod;
-let aprs_call;
 let lat, long, alt;
 let last_update;
 let city, state;
-let aprs_butt, iridium_butt;
 let console_text;
-let radioDropdown;
-let radioInput;
-
-// Track previous values
-let previousIridiumValue = "";
-let previousAprsValue = "";
 let previousLat = null;
 let previousLong = null;
 
 // Track active instances
-let activeAprsCallsigns = [];
-let activeIridiumModems = [];
-let activeWsprCallsigns = [];
 let lastKnownPosition = null;
+let moduleCatalog = [];
 
 // Interval IDs
 let utcIntervalId;
@@ -97,7 +86,9 @@ async function init() {
       if (
         !target.closest(".panel-contents") &&
         !target.closest(".side-tab") &&
-        !target.closest(".sidebar-tab")
+        !target.closest(".sidebar-tab") &&
+        !target.closest("harp-select") &&
+        !target.closest(".harp-dd-portal")
       ) {
         if (panelContents) {
           panelContents.classList.remove("open");
@@ -115,6 +106,7 @@ async function init() {
     const addBtn = document.getElementById("add-connection");
     const list = document.getElementById("connections-list");
     if (addBtn && list) {
+      await loadModuleCatalog();
       addBtn.addEventListener("click", () => addConnection(list));
       addConnection(list);
     }
@@ -132,11 +124,13 @@ async function init() {
             showConsole(`Location acquired: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`);
             
             // Update ground station inputs with the acquired location
-            const gsInputs = document.querySelectorAll(".ground-station input");
-            if (gsInputs.length >= 3) {
-              gsInputs[0].value = location.latitude.toFixed(6);
-              gsInputs[1].value = location.longitude.toFixed(6);
-              gsInputs[2].value = "0"; // Default altitude
+            const gsLat = document.getElementById("gs-lat");
+            const gsLon = document.getElementById("gs-lon");
+            const gsAlt = document.getElementById("gs-alt");
+            if (gsLat && gsLon && gsAlt) {
+              gsLat.value = location.latitude.toFixed(6);
+              gsLon.value = location.longitude.toFixed(6);
+              gsAlt.value = "0"; // Default altitude
             }
             
             // Update compass with the new location
@@ -174,19 +168,13 @@ async function init() {
   // Get DOM elements
   utcMsg = document.querySelector("#utc-msg");
   dateMsg = document.querySelector("#date-msg");
-  ir_mod = document.querySelector("#iridium_field");
-  aprs_call = document.querySelector("#aprs_field");
   lat = document.querySelector("#lat");
   long = document.querySelector("#long");
   alt = document.querySelector("#alt");
   last_update = document.querySelector("#last-update");
   city = document.querySelector("#city");
   state = document.querySelector("#state");
-  aprs_butt = document.querySelector("#aprs_butt");
-  iridium_butt = document.querySelector("#iridium_butt");
   console_text = document.querySelector("#console-text");
-  radioDropdown = document.querySelector("#radio-method");
-  radioInput = document.querySelector(".dropdown input[type='text']");
 
   // Setup prediction controls
   setupPredictionControls();
@@ -204,93 +192,8 @@ async function init() {
     }
   }
 
-  if (radioDropdown && radioInput) {
-    radioDropdown.addEventListener("change", handleRadioDropdownChange);
-    updateInputPlaceholder(radioDropdown.value);
-    radioInput.addEventListener("blur", handleRadioInputBlur);
-    radioInput.addEventListener("keypress", function (event) {
-      if (event.key === "Enter") {
-        handleRadioInputBlur(event);
-      }
-    });
-    loadRadioInputValue(radioDropdown.value);
-  }
-
-  function handleRadioDropdownChange(event) {
-    const selectedRadio = event.target.value;
-    updateInputPlaceholder(selectedRadio);
-    loadRadioInputValue(selectedRadio);
-  }
-
-  function updateInputPlaceholder(radioType) {
-    const radioInput = document.querySelector(".dropdown input[type='text']");
-    if (!radioInput) return;
-
-    if (radioType === "iridium_field") {
-      radioInput.placeholder = "Enter Iridium Modem ID";
-    } else if (radioType === "aprs_field") {
-      radioInput.placeholder = "Enter APRS Callsign";
-    }
-  }
-
-  async function loadRadioInputValue(radioType) {
-    const radioInput = document.querySelector(".dropdown input[type='text']");
-    if (!radioInput) return;
-
-    try {
-      if (radioType === "iridium_field") {
-        const savedIridium = await invoke("get_irr_modem");
-        radioInput.value = savedIridium || "";
-      } else if (radioType === "aprs_field") {
-        const savedAprs = await invoke("get_aprs_callsign");
-        radioInput.value = savedAprs || "";
-      }
-    } catch (error) {
-      if (console_text)
-        console_text.textContent = "Error loading radio value: " + error;
-      else console.error("Error loading radio value:", error);
-    }
-  }
-
-  async function handleRadioInputBlur(event) {
-    const radioDropdown = document.querySelector("#radio-method");
-    if (!radioDropdown) return;
-
-    const selectedRadio = radioDropdown.value;
-    const newValue = event.target.value.trim();
-
-    if (selectedRadio === "iridium_field") {
-      await handleIridiumUpdate(newValue);
-    } else if (selectedRadio === "aprs_field") {
-      await handleAprsUpdate(newValue);
-    }
-
-    event.target.value = "";
-  }
-
   // Initialize the map iframe
   initMapIframe();
-
-  // Set up event listeners for input fields
-  if (ir_mod) {
-    ir_mod.addEventListener("blur", handleIridiumInput);
-    ir_mod.addEventListener("keypress", function (event) {
-      if (event.key === "Enter") {
-        handleIridiumInput(event);
-      }
-    });
-  }
-
-  if (aprs_call) {
-    aprs_call.addEventListener("blur", handleAprsInput);
-    aprs_call.addEventListener("keypress", function (event) {
-      if (event.key === "Enter") {
-        handleAprsInput(event);
-      }
-    });
-  }
-
-  await loadSavedValues();
 
   // Initial Updates
   await date();
@@ -362,7 +265,7 @@ function setupPredictionControls() {
   }
 
   // Algorithm selector
-  const algoSelect = document.querySelector("#predictions label select");
+  const algoSelect = document.querySelector("#predictions label harp-select");
   if (algoSelect) {
     algoSelect.addEventListener("change", async (e) => {
       const algorithm = e.target.value;
@@ -427,26 +330,6 @@ async function runPrediction() {
   }
 }
 
-async function loadSavedValues() {
-  try {
-    const savedIridium = await invoke("get_irr_modem");
-    if (savedIridium) {
-      if (ir_mod) ir_mod.value = savedIridium;
-      previousIridiumValue = savedIridium;
-    }
-
-    const savedAprs = await invoke("get_aprs_callsign");
-    if (savedAprs) {
-      if (aprs_call) aprs_call.value = savedAprs;
-      previousAprsValue = savedAprs;
-    }
-  } catch (error) {
-    if (console_text)
-      console_text.textContent = "Failed to load saved values:" + error;
-    else console.error("Failed to load saved values:", error);
-  }
-}
-
 //------------------------------Update Functions------------------------------
 // Update date
 async function date() {
@@ -491,24 +374,7 @@ async function updateTracker() {
 async function updateActiveStatus() {
   if (isGsClientMode) return;
   try {
-    // Check if active and show button on the Connected Clients
-    const isAprsActive = await invoke("is_aprs_active");
-    if (aprs_butt) {
-      if (isAprsActive) aprs_butt.style.display = "inline";
-      else aprs_butt.style.display = "none";
-    }
-
-    try {
-      const isIridiumActive = await invoke("is_iridium_active");
-      if (iridium_butt) {
-        if (isIridiumActive) iridium_butt.style.display = "inline";
-        else iridium_butt.style.display = "none";
-      }
-    } catch (error) {
-      console_text.textContent = "Error checking Iridium status:" + error;
-    }
-
-    // Update the connection display with fresh last update time
+    await loadModuleCatalog();
     await updateConnectedClients();
     try {
       await updateConnectionIndicators();
@@ -521,71 +387,21 @@ async function updateActiveStatus() {
 // Update the display of connected clients
 async function updateConnectedClients() {
   try {
-    const signalFlexbox = document.querySelector(".signal_flexbox");
-    if (!signalFlexbox) return;
-
-    //Clear the existing stuff
-    const existingConnections =
-      signalFlexbox.querySelectorAll(".connection-item");
-    existingConnections.forEach((item) => item.remove());
-
-    //validity data
-    const aprsValidity = await invoke("get_aprs_validity");
-    const iridiumValidity = await invoke("get_iridium_validity");
-    const wsprValidity = await invoke("get_wspr_validity");
-
-    // Update APRS button if there are active APRS connections
-    if (activeAprsCallsigns.length > 0 && aprs_butt) {
-      const callsign = activeAprsCallsigns[0];
-      aprs_butt.textContent = `APRS\n${callsign}`;
-      const isValid = aprsValidity[0];
-      aprs_butt.style.backgroundColor = isValid ? "#90EE90" : "white";
-      aprs_butt.style.display = "inline";
-
-      // Add additional APRS connections
-      for (let i = 1; i < activeAprsCallsigns.length; i++) {
-        const item = document.createElement("button");
-        item.className = "connection-item";
-        item.textContent = `APRS\n${activeAprsCallsigns[i]}`;
-        const isValid = aprsValidity[i];
-        item.style.backgroundColor = isValid ? "#90EE90" : "white";
-        signalFlexbox.appendChild(item);
-      }
-    }
-
-    // Update Iridium button if there are active Iridium connections
-    if (activeIridiumModems.length > 0 && iridium_butt) {
-      const modem = activeIridiumModems[0];
-      iridium_butt.textContent = `Iridium | ${modem}`;
-      const isValid = iridiumValidity[0];
-      iridium_butt.style.backgroundColor = isValid ? "#90EE90" : "white";
-      iridium_butt.style.display = "inline";
-
-      // Add additional Iridium connections
-      for (let i = 1; i < activeIridiumModems.length; i++) {
-        const item = document.createElement("button");
-        item.className = "connection-item";
-        item.textContent = `Iridium | ${activeIridiumModems[i]}`;
-        const isValid = iridiumValidity[i];
-        item.style.backgroundColor = isValid ? "#90EE90" : "white";
-        signalFlexbox.appendChild(item);
-      }
-    }
-
-    // Update WSPR button if there are active WSPR connections
-    if (activeWsprCallsigns.length > 0) {
-      for (let i = 0; i < activeWsprCallsigns.length; i++) {
-        const item = document.createElement("button");
-        item.className = "connection-item";
-        item.textContent = `WSPR\n${activeWsprCallsigns[i]}`;
-        const isValid = wsprValidity[i];
-        item.style.backgroundColor = isValid ? "#90EE90" : "white";
-        signalFlexbox.appendChild(item);
-      }
-    }
+    const snapshots = await invoke("get_module_snapshots");
+    document.querySelectorAll(".connection-entry[data-module-id]").forEach((entry) => {
+      const snapshot = snapshots.find((item) => item.id === entry.dataset.moduleId);
+      const indicator = entry.querySelector(".conn-indicator");
+      if (!indicator) return;
+      indicator.classList.toggle("ok", Boolean(snapshot?.connected));
+      indicator.classList.toggle("pending", Boolean(snapshot?.enabled && !snapshot?.connected));
+    });
   } catch (error) {
     console.error("Error updating connected clients:", error);
   }
+}
+
+async function loadModuleCatalog() {
+  moduleCatalog = await invoke("get_module_catalog");
 }
 
 // Look up city and state based on coordinates
@@ -652,32 +468,6 @@ async function updateLastUpdate() {
 
 //------------------------------Input Handlers------------------------------
 
-// Handle Iridium input changes
-async function handleIridiumUpdate(newValue) {
-  try {
-    if (newValue !== "") {
-      await invoke("set_irr_modem", { id: newValue });
-      await invoke("set_iridium");
-
-      // Add to active instances list if not already present
-      if (!activeIridiumModems.includes(newValue)) {
-        activeIridiumModems.push(newValue);
-      }
-
-      if (console_text)
-        console_text.textContent = "Iridium modem updated: " + newValue;
-      else console.log("Iridium modem updated:", newValue);
-
-      // Update the display of connected clients
-      await updateConnectedClients();
-    }
-  } catch (error) {
-    if (console_text)
-      console_text.textContent = "Error updating Iridium settings: " + error;
-    else console.error("Error updating Iridium settings:", error);
-  }
-}
-
 //for handling filtering method changes
 async function handleFilteringMethodChange(event) {
   const newValue = event.target.value;
@@ -689,32 +479,6 @@ async function handleFilteringMethodChange(event) {
     if (console_text)
       console_text.textContent = "Error updating filtering method: " + error;
     else console.error("Error updating filtering method:", error);
-  }
-}
-
-// Handle APRS input changes
-async function handleAprsUpdate(newValue) {
-  try {
-    if (newValue !== "") {
-      await invoke("set_aprs_callsign", { id: newValue });
-      await invoke("set_aprs");
-
-      // Add to active instances list if not already present
-      if (!activeAprsCallsigns.includes(newValue)) {
-        activeAprsCallsigns.push(newValue);
-      }
-
-      if (console_text)
-        console_text.textContent = "APRS callsign updated: " + newValue;
-      else console.log("APRS callsign updated:", newValue);
-
-      // Update the display of connected clients
-      await updateConnectedClients();
-    }
-  } catch (error) {
-    if (console_text)
-      console_text.textContent = "Error updating APRS settings: " + error;
-    else console.error("Error updating APRS settings:", error);
   }
 }
 
@@ -791,7 +555,6 @@ async function getPosition() {
   }
 }
 
-//function that adds a connection to the tracker
 function addConnection(container) {
   const entry = document.createElement("div");
   entry.className = "connection-entry";
@@ -799,274 +562,128 @@ function addConnection(container) {
   const indicator = document.createElement("div");
   indicator.className = "conn-indicator";
 
-  const type = document.createElement("select");
-  ["None", "APRS", "Iridium", "WSPR"].forEach((n) => {
-    const o = document.createElement("option");
-    o.value = n;
-    o.textContent = n;
-    type.appendChild(o);
+  const type = document.createElement("harp-select");
+  const emptyOption = document.createElement("harp-option");
+  emptyOption.setAttribute("value", "");
+  emptyOption.textContent = "Select module";
+  type.appendChild(emptyOption);
+  moduleCatalog.forEach((definition) => {
+    const option = document.createElement("harp-option");
+    option.setAttribute("value", definition.module_type);
+    option.textContent = definition.display_name;
+    type.appendChild(option);
   });
 
-  const ident = document.createElement("input");
-  ident.type = "text";
-  ident.placeholder = "Identifier (callsign / IMEI)";
-
-  const remove = document.createElement("button");
-  remove.className = "remove";
-  remove.innerText = "✕";
+  const fields = document.createElement("div");
+  fields.className = "connection-config-fields";
 
   const activate = document.createElement("button");
   activate.className = "activate";
   activate.innerText = "Activate";
+  const remove = document.createElement("button");
+  remove.className = "remove";
+  remove.innerText = "✕";
 
-  async function commitConnection() {
-    const val = ident.value.trim();
-    const t = type.value;
-    if (!val || t === "None") return;
-
-    try {
-      if (t === "APRS") {
-        await invoke("set_aprs_callsign", { id: val });
-        await invoke("set_aprs");
-        if (!activeAprsCallsigns.includes(val)) activeAprsCallsigns.push(val);
-      } else if (t === "Iridium") {
-        await invoke("set_irr_modem", { id: val });
-        await invoke("set_iridium");
-        if (!activeIridiumModems.includes(val)) activeIridiumModems.push(val);
-      } else if (t === "WSPR") {
-        await invoke("set_wspr_callsign", { id: val });
-        await invoke("set_wspr");
-        if (!activeWsprCallsigns.includes(val)) activeWsprCallsigns.push(val);
-      }
-
-      await updateConnectedClients();
-      try {
-        await invoke("update");
-      } catch (e) {}
-
-      setTimeout(() => {
-        updateConnectionIndicators().catch(() => {});
-      }, 800);
-    } catch (err) {
-      if (console_text)
-        console_text.textContent = "Error saving connection: " + err;
-      else console.error("Error saving connection:", err);
-    }
+  function selectedDefinition() {
+    return moduleCatalog.find((definition) => definition.module_type === type.value);
   }
 
-  remove.addEventListener("click", async () => {
-    const val = ident.value.trim();
-    const t = type.value;
-    if (t === "APRS") {
-      const idx = activeAprsCallsigns.indexOf(val);
-      if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
-      try {
-        await invoke("set_aprs_callsign", { id: "" });
-        await invoke("set_aprs");
-      } catch (e) {}
-    } else if (t === "Iridium") {
-      const idx = activeIridiumModems.indexOf(val);
-      if (idx >= 0) activeIridiumModems.splice(idx, 1);
-      try {
-        await invoke("set_irr_modem", { id: "" });
-        await invoke("set_iridium");
-      } catch (e) {}
-    } else if (t === "WSPR") {
-      const idx = activeWsprCallsigns.indexOf(val);
-      if (idx >= 0) activeWsprCallsigns.splice(idx, 1);
-      try {
-        await invoke("set_wspr_callsign", { id: "" });
-        await invoke("set_wspr");
-      } catch (e) {}
-    }
-    container.removeChild(entry);
-    await updateConnectedClients();
-    try {
-      await invoke("update");
-    } catch (e) {}
-    setTimeout(() => {
-      updateConnectionIndicators().catch(() => {});
-    }, 800);
-  });
+  function renderFields() {
+    fields.replaceChildren();
+    const definition = selectedDefinition();
+    if (!definition) return;
 
-  ident.addEventListener("blur", commitConnection);
-  ident.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") commitConnection();
-  });
-  type.addEventListener("change", () => {});
+    definition.fields.forEach((field) => {
+      const input = document.createElement("input");
+      input.type = field.field_type || "text";
+      input.name = field.key;
+      input.placeholder = field.placeholder || field.label;
+      input.required = field.required;
+      input.dataset.moduleField = field.key;
+      fields.appendChild(input);
+    });
+  }
 
-  activate.addEventListener("click", async () => {
-    const val = ident.value.trim();
-    const t = type.value;
-    if (!val || t === "None") {
-      showConsole("Enter identifier and select method first");
+  function readConfig() {
+    const config = {};
+    fields.querySelectorAll("[data-module-field]").forEach((input) => {
+      config[input.dataset.moduleField] = input.value.trim();
+    });
+    return config;
+  }
+
+  function moduleId(config) {
+    const definition = selectedDefinition();
+    const identityField = definition?.fields.find((field) =>
+      ["id", "device_id", "call_sign", "modem"].includes(field.key),
+    );
+    return config[identityField?.key] || `${type.value}-${Date.now()}`;
+  }
+
+  async function activateModule() {
+    const definition = selectedDefinition();
+    if (!definition) {
+      showConsole("Select a module first");
       return;
     }
-    if (activate.dataset.active === "1") {
-      // DEACTIVATING
-      activate.dataset.active = "0";
-      activate.innerText = "Activate";
-      ident.disabled = false;  // Re-enable input when deactivating
-      type.disabled = false;   // Re-enable type selector when deactivating
-      
-      if (t === "APRS") {
-        const idx = activeAprsCallsigns.indexOf(val);
-        if (idx >= 0) activeAprsCallsigns.splice(idx, 1);
-        try {
-          await invoke("set_aprs_callsign", { id: "" });
-          await invoke("set_aprs");
-        } catch (e) {
-          console.error(e);
-        }
-      } else if (t === "Iridium") {
-        const idx = activeIridiumModems.indexOf(val);
-        if (idx >= 0) activeIridiumModems.splice(idx, 1);
-        try {
-          await invoke("set_irr_modem", { id: "" });
-          await invoke("set_iridium");
-        } catch (e) {
-          console.error(e);
-        }
-      } else if (t === "WSPR") {
-        const idx = activeWsprCallsigns.indexOf(val);
-        if (idx >= 0) activeWsprCallsigns.splice(idx, 1);
-        try {
-          await invoke("set_wspr_callsign", { id: "" });
-          await invoke("set_wspr");
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      indicator.classList.remove("ok");
-      showConsole("Deactivated " + val);
-      await updateConnectedClients();
+    const config = readConfig();
+    const missing = definition.fields.find((field) => field.required && !config[field.key]);
+    if (missing) {
+      showConsole(`Enter ${missing.label}`);
       return;
     }
 
-    // ACTIVATING
-    showConsole("Activating " + val + "..");
-    await commitConnection();
+    const id = moduleId(config);
+    await invoke("configure_module", {
+      moduleType: definition.module_type,
+      moduleId: id,
+      config,
+    });
+    entry.dataset.moduleId = id;
+    type.disabled = true;
+    fields.querySelectorAll("input").forEach((input) => { input.disabled = true; });
     activate.dataset.active = "1";
     activate.innerText = "Deactivate";
-    ident.disabled = true;   // Disable input when activated
-    type.disabled = true;    // Disable type selector when activated
     indicator.classList.add("pending");
-    setTimeout(async () => {
-      await updateConnectionIndicators();
-      indicator.classList.remove("pending");
-    }, 1500);
+    await updateConnectedClients();
+  }
+
+  type.addEventListener("change", renderFields);
+  activate.addEventListener("click", async () => {
+    try {
+      if (activate.dataset.active === "1") {
+        await invoke("remove_module", { moduleId: entry.dataset.moduleId });
+        delete entry.dataset.moduleId;
+        type.disabled = false;
+        fields.querySelectorAll("input").forEach((input) => { input.disabled = false; });
+        activate.dataset.active = "0";
+        activate.innerText = "Activate";
+        indicator.classList.remove("ok", "pending");
+      } else {
+        await activateModule();
+      }
+    } catch (error) {
+      showConsole(`Module error: ${error}`);
+    }
   });
 
-  entry.appendChild(indicator);
-  entry.appendChild(type);
-  entry.appendChild(ident);
-  entry.appendChild(activate);
-  entry.appendChild(remove);
+  remove.addEventListener("click", async () => {
+    if (entry.dataset.moduleId) {
+      await invoke("remove_module", { moduleId: entry.dataset.moduleId }).catch(() => {});
+    }
+    entry.remove();
+  });
 
+  entry.append(indicator, type, fields, activate, remove);
   container.appendChild(entry);
-  ident.focus();
+  type.focus();
 }
 
 //------------------------------Connection Handlers------------------------------
 
-// update indicators for all connection entries by querying backend validity
+// The catalog-driven editor uses the same snapshot path for every module.
 async function updateConnectionIndicators() {
-  try {
-    const entries = document.querySelectorAll(".connection-entry");
-    if (!entries || entries.length === 0) return;
-
-    const aprsValidity = await invoke("get_aprs_validity").catch(() => []);
-    const iridiumValidity = await invoke("get_iridium_validity").catch(
-      () => [],
-    );
-    const wsprValidity = await invoke("get_wspr_validity").catch(() => []);
-    const savedAprsCallsign = await invoke("get_aprs_callsign").catch(
-      () => null,
-    );
-    const savedIrrModem = await invoke("get_irr_modem").catch(() => null);
-    const savedWsprCallsign = await invoke("get_wspr_callsign").catch(
-      () => null,
-    );
-
-    entries.forEach((entry) => {
-      const sel = entry.querySelector("select");
-      const input = entry.querySelector("input");
-      const indicator = entry.querySelector(".conn-indicator");
-      if (!sel || !input || !indicator) return;
-      const t = sel.value;
-      const id = input.value.trim();
-
-      // clear pending marker if any
-      indicator.classList.remove("pending");
-      if (t === "APRS") {
-        // Prefer exact match with the backend's stored callsign if available
-        let isValid = false;
-        if (savedAprsCallsign && id === savedAprsCallsign) {
-          isValid = aprsValidity.some((v) => v === true);
-        } else if (
-          aprsValidity.length > 0 &&
-          activeAprsCallsigns.length === aprsValidity.length
-        ) {
-          const idx = activeAprsCallsigns.indexOf(id);
-          isValid = idx >= 0 && aprsValidity[idx];
-        } else {
-          // fallback: if any validity true, and we have only one active entry, mark it
-          if (
-            aprsValidity.filter(Boolean).length === 1 &&
-            activeAprsCallsigns.length === 1 &&
-            activeAprsCallsigns[0] === id
-          )
-            isValid = true;
-        }
-        if (isValid) indicator.classList.add("ok");
-        else indicator.classList.remove("ok");
-      } else if (t === "Iridium") {
-        let isValid = false;
-        if (savedIrrModem && id === savedIrrModem) {
-          isValid = iridiumValidity.some((v) => v === true);
-        } else if (
-          iridiumValidity.length > 0 &&
-          activeIridiumModems.length === iridiumValidity.length
-        ) {
-          const idx = activeIridiumModems.indexOf(id);
-          isValid = idx >= 0 && iridiumValidity[idx];
-        } else {
-          if (
-            iridiumValidity.filter(Boolean).length === 1 &&
-            activeIridiumModems.length === 1 &&
-            activeIridiumModems[0] === id
-          )
-            isValid = true;
-        }
-        if (isValid) indicator.classList.add("ok");
-        else indicator.classList.remove("ok");
-      } else if (t === "WSPR") {
-        let isValid = false;
-        if (savedWsprCallsign && id === savedWsprCallsign) {
-          isValid = wsprValidity.some((v) => v === true);
-        } else if (
-          wsprValidity.length > 0 &&
-          activeWsprCallsigns.length === wsprValidity.length
-        ) {
-          const idx = activeWsprCallsigns.indexOf(id);
-          isValid = idx >= 0 && wsprValidity[idx];
-        } else {
-          if (
-            wsprValidity.filter(Boolean).length === 1 &&
-            activeWsprCallsigns.length === 1 &&
-            activeWsprCallsigns[0] === id
-          )
-            isValid = true;
-        }
-        if (isValid) indicator.classList.add("ok");
-        else indicator.classList.remove("ok");
-      } else {
-        indicator.classList.remove("ok");
-      }
-    });
-  } catch (err) {
-    console.error("Error updating connection indicators:", err);
-  }
+  await updateConnectedClients();
 }
 
 //update UTC text and last-update placeholder
@@ -1102,15 +719,67 @@ function initMapIframe() {
   // Set the iframe source to the map HTML file
   mapIframe.src = "map.html";
 
-  window.addEventListener("message", (event) => {
-    // Check if the map is ready
-    if (event.data && event.data.type === "MAP_READY") {
+  window.addEventListener("message", async (event) => {
+    const mapIframe = document.querySelector(".screen");
+
+    if (event.data?.type === "MAP_READY") {
       console.log("Map is ready");
 
       // Send current position if we have it
       updateMapWithCurrentPosition();
+      syncAircraftConfigToMap();
+      return;
+    }
+
+    if (event.data?.type === "FETCH_OPENSKY") {
+      const { id, lamin, lomin, lamax, lomax } = event.data;
+      try {
+        const data = await invoke("fetch_opensky_states", {
+          lamin,
+          lomin,
+          lamax,
+          lomax,
+        });
+        mapIframe?.contentWindow?.postMessage(
+          { type: "OPENSKY_RESULT", id, data },
+          "*",
+        );
+      } catch (error) {
+        mapIframe?.contentWindow?.postMessage(
+          {
+            type: "OPENSKY_ERROR",
+            id,
+            error: String(error),
+          },
+          "*",
+        );
+      }
     }
   });
+
+  const aircraftRadiusInput = document.getElementById("aircraft-radius-km");
+  if (aircraftRadiusInput) {
+    aircraftRadiusInput.addEventListener("change", syncAircraftConfigToMap);
+    aircraftRadiusInput.addEventListener("blur", syncAircraftConfigToMap);
+  }
+}
+
+function syncAircraftConfigToMap() {
+  const mapIframe = document.querySelector(".screen");
+  if (!mapIframe?.contentWindow) return;
+
+  const radiusInput = document.getElementById("aircraft-radius-km");
+  const radiusKm = Number(radiusInput?.value);
+  const radiusMeters =
+    Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm * 1000 : 100000;
+
+  mapIframe.contentWindow.postMessage(
+    {
+      type: "SET_AIRCRAFT_CONFIG",
+      radiusMeters,
+    },
+    "*",
+  );
 }
 
 // Update the map with current position
@@ -1173,10 +842,11 @@ async function updateMap(latitude, longitude, altitude, horiz_vel, vert_vel) {
 async function getUserLocation() {
   try {
     // 1) Prefer explicit Ground Station inputs if the user puts it in the Settings panel
-    const gsInputs = document.querySelectorAll(".ground-station input");
-    if (gsInputs && gsInputs.length >= 2) {
-      const latVal = gsInputs[0].value && gsInputs[0].value.trim();
-      const lonVal = gsInputs[1].value && gsInputs[1].value.trim();
+    const gsLat = document.getElementById("gs-lat");
+    const gsLon = document.getElementById("gs-lon");
+    if (gsLat && gsLon) {
+      const latVal = gsLat.value && gsLat.value.trim();
+      const lonVal = gsLon.value && gsLon.value.trim();
       const latNum = Number(latVal);
       const lonNum = Number(lonVal);
       if (
@@ -1402,7 +1072,7 @@ function setupClientSyncListeners() {
 }
 
 function initThemeSelector() {
-  const themeSelect = document.querySelector("#settings select");
+  const themeSelect = document.querySelector("#settings harp-select");
 
   if (!themeSelect) return;
 

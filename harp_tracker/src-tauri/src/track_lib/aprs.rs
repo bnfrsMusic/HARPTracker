@@ -2,13 +2,13 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::track_lib::module::{Module, ModuleDefinition, ModuleDescriptor, ModuleField, ModuleRegistration, ModuleStatus, TelemetryEvent};
 use crate::track_lib::position_time::PositionTime;
-use crate::track_lib::tracking_type::TrackingType;
 
 #[derive(Clone)]
 pub struct APRS {
     active: bool,
-    tracking_type: TrackingType,
+    debug: bool,
     api_key: String,
     base_url: String,
     call_sign: String,
@@ -26,7 +26,7 @@ impl APRS {
     pub fn new(api_key: &str, call_sign: &str) -> Self {
         Self {
             active: true,
-            tracking_type: TrackingType::APRS,
+            debug: false,
             api_key: api_key.to_string(),
             base_url: "https://api.aprs.fi/api".to_string(),
             call_sign: call_sign.to_string(),
@@ -41,26 +41,51 @@ impl APRS {
         }
     }
 
+    pub fn from_event(event: &TelemetryEvent) -> Result<Self, String> {
+        let call_sign = event
+            .metadata
+            .get("ConnectionName")
+            .and_then(|value| value.as_str())
+            .unwrap_or(&event.source_id)
+            .to_string();
+
+        let mut module = Self::new("", &call_sign);
+        module.position_time.update(
+            event.lat.unwrap_or(0.0),
+            event.lon.unwrap_or(0.0),
+            event.alt.unwrap_or(0.0),
+            event.timestamp,
+            0.0,
+            0.0,
+        );
+        Ok(module)
+    }
+
     pub fn update_position(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let url = format!(
             "{}/get?name={}&what=loc&apikey={}&format=json",
             self.base_url, self.call_sign, self.api_key
         );
+        let logged_url = url.replace(&format!("apikey={}", self.api_key), "apikey=[REDACTED]");
+
+        if self.debug {
+            eprintln!("[APRS] GET {}", logged_url);
+        }
 
         //make GET request to URL
         let response: Value = self.client.get(&url).send().map_err(|e| {
-            eprintln!("APRS API Request Error: {}", url);
+            eprintln!("APRS API Request Error: {}", logged_url);
             eprintln!("Error details: {}", e);
             Box::new(e) as Box<dyn std::error::Error>
         })?.json().map_err(|e| {
-            eprintln!("Failed to parse APRS response from: {}", url);
+            eprintln!("Failed to parse APRS response from: {}", logged_url);
             eprintln!("Error details: {}", e);
             Box::new(e) as Box<dyn std::error::Error>
         })?;
 
         // Check if request was successful
         if response["result"].as_str() != Some("ok") {
-            eprintln!("APRS API URL: {}", url);
+            eprintln!("APRS API URL: {}", logged_url);
             eprintln!("APRS API Response: {}", response.to_string());
             return Err(format!("API error: {}", response["description"].as_str().unwrap_or("Unknown error")).into());
         }
@@ -68,7 +93,7 @@ impl APRS {
         // any entries found?
         let found = response["found"].as_u64().unwrap_or(0);
         if found == 0 {
-            eprintln!("APRS API URL: {}", url);
+            eprintln!("APRS API URL: {}", logged_url);
             eprintln!("APRS API Response: {}", response.to_string());
             return Err("No entries found for APRS".into());
         }
@@ -162,7 +187,7 @@ impl APRS {
             }
         }
         
-        eprintln!("APRS API URL: {}", url);
+        eprintln!("APRS API URL: {}", logged_url);
         eprintln!("APRS API Response: {}", response.to_string());
         Err("Failed to parse position data from response".into())
     }
@@ -190,4 +215,102 @@ impl APRS {
     pub fn get_call_sign(&self) -> &str {
         &self.call_sign
     }
+}
+// module implementation for APRS
+impl Module for APRS {
+    fn id(&self) -> &str {
+        &self.call_sign
+    }
+
+    fn name(&self) -> &str {
+        "APRS"
+    }
+
+    fn module_type(&self) -> &str {
+        "aprs"
+    }
+
+    fn supports_source(&self, source: &str) -> bool {
+        source.eq_ignore_ascii_case(&self.call_sign) || source.eq_ignore_ascii_case(self.name())
+    }
+
+    fn ingest(&mut self, event: &TelemetryEvent) -> Result<(), String> {
+        let lat = event.lat.unwrap_or(self.position_time.lat);
+        let lon = event.lon.unwrap_or(self.position_time.lon);
+        let alt = event.alt.unwrap_or(self.position_time.alt);
+        self.position_time.update(lat, lon, alt, event.timestamp, 0.0, 0.0);
+        self.active = true;
+        Ok(())
+    }
+
+    fn update(&mut self) -> Result<(), String> {
+        self.update_position().map_err(|error| error.to_string())
+    }
+
+    fn position(&self) -> Option<PositionTime> {
+        (self.position_time.last_update != 0).then(|| self.position_time.clone())
+    }
+
+    fn status(&self) -> ModuleStatus {
+        ModuleStatus {
+            enabled: self.active,
+            connected: self.active && self.position_time.last_update != 0,
+            last_update: if self.position_time.last_update != 0 {
+                Some(self.position_time.last_update)
+            } else {
+                None
+            },
+            error: None,
+        }
+    }
+
+    fn set_status(&mut self, status: ModuleStatus) {
+        self.active = status.enabled;
+        if let Some(last_update) = status.last_update {
+            self.position_time.last_update = last_update;
+        }
+    }
+
+    fn descriptor(&self) -> ModuleDescriptor {
+        ModuleDescriptor {
+            id: self.call_sign.clone(),
+            name: self.name().to_string(),
+            enabled: self.active,
+            connected: self.active && self.position_time.last_update != 0,
+            last_update: if self.position_time.last_update != 0 {
+                Some(self.position_time.last_update)
+            } else {
+                None
+            },
+            module_type: self.module_type().to_string(),
+        }
+    }
+}
+
+fn aprs_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        module_type: "aprs".to_string(),
+        display_name: "APRS".to_string(),
+        description: "Track an APRS callsign through APRS.fi.".to_string(),
+        fields: vec![
+            ModuleField { key: "call_sign".to_string(), label: "Callsign".to_string(), field_type: "text".to_string(), required: true, secret: false, placeholder: Some("N0CALL".to_string()) },
+            ModuleField { key: "api_key".to_string(), label: "API key".to_string(), field_type: "password".to_string(), required: true, secret: true, placeholder: None },
+        ],
+    }
+}
+
+fn create_aprs(id: String, config: Value) -> Result<Box<dyn Module>, String> {
+    let call_sign = config.get("call_sign").and_then(Value::as_str).unwrap_or(&id);
+    let api_key = config
+        .get("api_key")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| std::env::var("APRSFI_API_KEY").ok())
+        .unwrap_or_default();
+    Ok(Box::new(APRS::new(&api_key, call_sign)))
+}
+
+inventory::submit! {
+    ModuleRegistration { definition: aprs_definition, create: create_aprs }
 }
