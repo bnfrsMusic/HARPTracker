@@ -194,7 +194,6 @@ impl SondeHubPredictor {
         let mut ascent = Vec::new();
         let mut descent = Vec::new();
         let mut burst: Option<PositionTime> = None;
-        let mut landing: Option<PositionTime> = None;
 
         for stage in &pred_stages {
             let is_ascent = stage.stage.to_lowercase().contains("ascent");
@@ -234,7 +233,7 @@ impl SondeHubPredictor {
             }
         }
 
-        landing = descent.last().cloned();
+        let landing = descent.last().cloned();
 
         Ok(PredictionResult { ascent, burst, descent, landing })
     }

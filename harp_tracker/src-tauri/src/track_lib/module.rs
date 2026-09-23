@@ -137,6 +137,14 @@ impl ModuleRegistry {
         self.modules.contains_key(id)
     }
 
+    /// Case-insensitive lookup of a registered module id by name.
+    pub fn find_module_id(&self, id: &str) -> Option<String> {
+        self.modules
+            .keys()
+            .find(|key| key.eq_ignore_ascii_case(id))
+            .cloned()
+    }
+
     pub fn remove(&mut self, id: &str) -> bool {
         self.modules.remove(id).is_some()
     }
@@ -161,6 +169,14 @@ impl ModuleRegistry {
         self.modules
             .values()
             .filter_map(|module| module.position().map(|position| (position, module.module_type().to_string())))
+            .collect()
+    }
+
+    /// Positions of connected modules keyed by module id, for lookups by name.
+    pub fn positions_by_id(&self) -> Vec<(String, PositionTime)> {
+        self.modules
+            .values()
+            .filter_map(|module| module.position().map(|position| (module.id().to_string(), position)))
             .collect()
     }
 

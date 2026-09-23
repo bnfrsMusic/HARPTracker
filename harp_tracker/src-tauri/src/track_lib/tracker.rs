@@ -10,12 +10,11 @@ use chrono::Utc;
 // use serialport::{COMPort, SerialPort};
 
 use crate::track_lib::{
+    api::{ApiTelemetry, API_MODULE_TYPE},
     module::{ModuleDefinition, ModuleRegistry, ModuleSnapshot, TelemetryEvent},
-    position_time::EstimationType,
+    position_time::{EstimationType, PositionTime},
     pred::sondhub_predictor::SondeHubPredictor,
 };
-
-use super::position_time::PositionTime;
 
 pub struct Tracker {
     active: bool,
@@ -81,7 +80,13 @@ impl Tracker {
         pos_time: PositionTime,
         csv_path: Option<PathBuf>,
     ) -> io::Result<()> {
-        let mut file = OpenOptions::new().append(true).open(csv_path.unwrap())?;
+        let Some(csv_path) = csv_path else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "CSV output is not initialized",
+            ));
+        };
+        let mut file = OpenOptions::new().append(true).open(csv_path)?;
         writeln!(
             file,
             "{},{:.6},{:.6},{:.2},{:.2},{:.2},{}",
@@ -132,16 +137,11 @@ impl Tracker {
             r * c
         }
 
-        // Compute velocities from previous point when missing; skip SondeHub if it's the first point
+        // Compute velocities from previous point when missing.
         let mut positions_for_filter: Vec<PositionTime> = Vec::new();
         for i in 0..positions_src.len() {
             let mut curr = positions_src[i].0.clone();
-            let src = &positions_src[i].1;
             if i == 0 {
-                // first point: if it's SondeHub and lacks velocities, skip it
-                if src == "sondehub" && curr.horiz_vel == 0.0 && curr.vert_vel == 0.0 {
-                    continue;
-                }
                 positions_for_filter.push(curr);
                 continue;
             }
@@ -290,5 +290,164 @@ impl Tracker {
 
     pub fn remove_module(&mut self, module_id: &str) -> bool {
         self.registry.remove(module_id)
+    }
+
+    // ------------------------External API Connections------------------------
+
+    /// Create (if not already registered) or update a connection fed over the
+    /// external HTTP API, and push its telemetry into the shared pipeline.
+    ///
+    /// Returns `"created"` the first time a connection name is seen or
+    /// `"updated"` for subsequent reports.
+    pub fn upsert_api_connection(&mut self, telemetry: &ApiTelemetry) -> Result<&'static str, String> {
+        let name = telemetry
+            .connection_name
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if name.is_empty() {
+            return Err("ConnectionName is required".to_string());
+        }
+
+        let timestamp = telemetry.last_updated.unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_secs())
+                .unwrap_or(0)
+        });
+
+        let mut metadata = std::collections::HashMap::new();
+        if let Some(vertical_velocity) = telemetry.vertical_velocity {
+            metadata.insert(
+                "vertical_velocity".to_string(),
+                serde_json::json!(vertical_velocity),
+            );
+        }
+        if let Some(ground_speed) = telemetry.ground_speed {
+            metadata.insert("ground_speed".to_string(), serde_json::json!(ground_speed));
+        }
+
+        let event = TelemetryEvent {
+            source_id: name,
+            timestamp,
+            lat: telemetry.lat,
+            lon: telemetry.lon,
+            alt: telemetry.alt,
+            metadata,
+            raw: serde_json::to_value(telemetry).unwrap_or(serde_json::Value::Null),
+        };
+
+        if !self.active {
+            self.csv_path = self.create_folder();
+            self.active = true;
+        }
+
+        let status = if self.registry.find_module_id(&event.source_id).is_some() {
+            "updated"
+        } else {
+            self.registry
+                .create_module(API_MODULE_TYPE, event.source_id.clone(), serde_json::Value::Null)?;
+            "created"
+        };
+
+        self.registry.ingest(&event)?;
+        Ok(status)
+    }
+
+    /// Positions of connected modules keyed by their id (connection name).
+    pub fn positions_by_id(&self) -> Vec<(String, PositionTime)> {
+        self.registry.positions_by_id()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::track_lib::module::{Module, ModuleDescriptor, ModuleStatus, TelemetryEvent};
+    use crate::track_lib::position_time::EstimationType;
+
+    use super::{PositionTime, Tracker};
+
+    /// Mimics SondeHub for tests: reports a position with no velocity, and
+    /// `update()` has no side effects (no network).
+    struct StaticSondeModule {
+        callsign: String,
+        position: PositionTime,
+    }
+
+    impl Module for StaticSondeModule {
+        fn id(&self) -> &str {
+            &self.callsign
+        }
+        fn name(&self) -> &str {
+            "SondeHub"
+        }
+        fn module_type(&self) -> &str {
+            "sondehub"
+        }
+        fn ingest(&mut self, _event: &TelemetryEvent) -> Result<(), String> {
+            Ok(())
+        }
+        fn update(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+        fn position(&self) -> Option<PositionTime> {
+            (self.position.last_update != 0).then(|| self.position.clone())
+        }
+        fn status(&self) -> ModuleStatus {
+            ModuleStatus {
+                enabled: true,
+                connected: self.position.last_update != 0,
+                last_update: Some(self.position.last_update),
+                error: None,
+            }
+        }
+        fn set_status(&mut self, _status: ModuleStatus) {}
+        fn descriptor(&self) -> ModuleDescriptor {
+            ModuleDescriptor {
+                id: self.callsign.clone(),
+                name: self.name().to_string(),
+                enabled: true,
+                connected: true,
+                last_update: Some(self.position.last_update),
+                module_type: self.module_type().to_string(),
+            }
+        }
+    }
+
+    /// Regression test: when SondeHub is the only position source and its
+    /// record carries no velocity (the common case), `update()` must still
+    /// produce an estimated position instead of falling through to
+    /// "No valid position found to update" (which left the tracker stuck at
+    /// 0,0,0 while the map kept flashing the SondeHub layers).
+    #[test]
+    fn sole_zero_velocity_source_still_produces_estimated_position() {
+        // write_to_csv requires a real path; use a temp file.
+        let csv_path =
+            std::env::temp_dir().join(format!("harp_tracker_test_{}.csv", std::process::id()));
+        std::fs::write(&csv_path, "track_type,lat,lon,alt,horiz_vel,vert_vel,time\n").unwrap();
+
+        let mut tracker = Tracker::new();
+        tracker.csv_path = Some(csv_path.clone());
+
+        let module = StaticSondeModule {
+            callsign: "DO3GU-47".to_string(),
+            position: PositionTime::new_with_value(
+                45.9166, 9.5833, 13990.0, 1_800_000_000, 0.0, 0.0,
+            ),
+        };
+        tracker.registry.register(module);
+
+        let errors = tracker.update(EstimationType::Recent);
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+
+        let (lat, lon, alt) = tracker.get_position();
+        assert!(
+            (lat - 45.9166).abs() < 1e-9 && (lon - 9.5833).abs() < 1e-9 && (alt - 13990.0).abs() < 1e-9,
+            "expected the SondeHub position, got ({lat}, {lon}, {alt})"
+        );
+        assert_eq!(tracker.get_last_update(), 1_800_000_000);
+
+        let _ = std::fs::remove_file(&csv_path);
     }
 }

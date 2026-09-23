@@ -6,4 +6,5 @@ pub mod sondehub;
 pub mod tracker;
 pub mod wspr;
 // pub mod arduino;
+pub mod api;
 pub mod pred;

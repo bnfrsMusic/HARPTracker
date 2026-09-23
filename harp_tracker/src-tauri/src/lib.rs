@@ -9,6 +9,7 @@ use std::{
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
+use track_lib::api;
 use track_lib::pred::predictor::{PredictionManager, PredictionParams};
 use track_lib::pred::sondhub_predictor::SondeHubPredictor;
 use track_lib::tracker::Tracker;
@@ -38,6 +39,23 @@ fn configure_module(
 #[tauri::command]
 fn remove_module(module_id: String) -> bool {
     TRACKER.lock().unwrap().remove_module(&module_id)
+}
+
+// ==================== External API Commands ====================
+
+/// Get the external API server settings (enabled + port).
+#[tauri::command]
+fn get_api_settings() -> track_lib::api::ApiSettings {
+    api::load_settings()
+}
+
+/// Save the external API server settings and (re)start the server to match.
+#[tauri::command]
+fn set_api_settings(enabled: bool, port: u16) -> Result<track_lib::api::ApiSettings, String> {
+    let settings = api::ApiSettings { enabled, port };
+    api::save_settings(&settings)?;
+    api::apply_api_settings(&settings)?;
+    Ok(settings)
 }
 
 use crate::connect_lib::{
@@ -580,6 +598,8 @@ pub fn run() {
             get_module_snapshots,
             configure_module,
             remove_module,
+            get_api_settings,
+            set_api_settings,
             update,
             get_position,
             get_lat,
@@ -622,6 +642,17 @@ pub fn run() {
                 println!("Starting embedded signaling server...");
                 start_signaling_server().await;
             });
+
+            // External API server (default port 8560, configurable in Settings)
+            let api_settings = api::load_settings();
+            match api::apply_api_settings(&api_settings) {
+                Ok(()) if api_settings.enabled => { /* logged by the server itself */ }
+                Ok(()) => println!(
+                    "External API server disabled by settings (http://localhost:{})",
+                    api_settings.port
+                ),
+                Err(error) => eprintln!("Failed to start external API server: {error}"),
+            }
 
             Ok(())
         })
